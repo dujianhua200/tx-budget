@@ -4,7 +4,7 @@
 #   1. 推 tag：git push origin v1.0.1
 #   2. 手动：Actions -> Build macOS -> Run workflow，填 tag（默认 v1.0.0）
 #
-# 产物：arm64 DMG，自动上传到同名 Release（上传前清空该 Release 旧资产，只留最新一个）。
+# 产物：arm64 DMG，自动上传到同名 Release（上传前只清该 Release 里的旧 .dmg，Windows 的 .exe 不动）。
 
 name: Build macOS
 
@@ -76,10 +76,10 @@ jobs:
           TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --title "$TAG" --notes "通信概预算 $TAG，见仓库 README"
+            gh release create "$TAG" --title "$TAG" --notes "通信概预算 $TAG，见仓库 README" || true
           fi
-          # 清空旧资产，只留本次的新 DMG
-          for id in $(gh release view "$TAG" --json assets --jq '.assets[].id' 2>/dev/null || true); do
+          # 只清旧 .dmg，不动 Windows 的 .exe
+          for id in $(gh release view "$TAG" --json assets --jq '.assets[] | select(.name | endswith(".dmg")) | .id' 2>/dev/null || true); do
             gh api -X DELETE "repos/${{ github.repository }}/releases/assets/$id" || true
           done
           gh release upload "$TAG" dist-mac/*.dmg --clobber
