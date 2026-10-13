@@ -1,10 +1,10 @@
-# 通信概预算：macOS 构建（arm64 + x64）
+# 通信概预算：macOS 构建（只出 arm64 DMG，一个文件）
 #
 # 触发方式（只用这两种，不在 push/PR 上跑 macOS runner）：
 #   1. 推 tag：git push origin v1.0.1
 #   2. 手动：Actions -> Build macOS -> Run workflow，填 tag（默认 v1.0.0）
 #
-# 产物：zip + dmg，自动上传到同名 Release（Release 不存在则新建）。
+# 产物：arm64 DMG，自动上传到同名 Release（上传前清空该 Release 旧资产，只留最新一个）。
 
 name: Build macOS
 
@@ -29,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [arm64, x64]
+        arch: [arm64]
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
     steps:
@@ -64,7 +64,11 @@ jobs:
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --title "$TAG" --notes "通信概预算 $TAG，见仓库 README"
           fi
-          gh release upload "$TAG" dist-mac/*.zip dist-mac/*.dmg --clobber
+          # 清空旧资产，只留本次的新 DMG
+          for id in $(gh release view "$TAG" --json assets --jq '.assets[].id' 2>/dev/null || true); do
+            gh api -X DELETE "repos/${{ github.repository }}/releases/assets/$id" || true
+          done
+          gh release upload "$TAG" dist-mac/*.dmg --clobber
 
       - name: Upload artifact (backup)
         uses: actions/upload-artifact@v4
