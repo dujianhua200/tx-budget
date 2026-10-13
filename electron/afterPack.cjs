@@ -9,7 +9,9 @@ module.exports = async function afterPack(context) {
   if (process.platform !== 'darwin') return;
   const appName = context.packager?.appInfo?.productFilename
     || fs.readdirSync(context.appOutDir).find((f) => f.endsWith('.app'));
-  const appPath = path.join(context.appOutDir, appName);
+  // productFilename 不带 .app 后缀，bundle 名需补上，否则 codesign 路径错误
+  const bundle = appName.endsWith('.app') ? appName : `${appName}.app`;
+  const appPath = path.join(context.appOutDir, bundle);
   execFileSync('codesign', ['--force', '--deep', '--sign', '-', appPath], { stdio: 'inherit' });
   execFileSync('codesign', ['--verify', '--strict', '--verbose=2', appPath], { stdio: 'inherit' });
   console.log(`ad-hoc 签名完成: ${appPath}`);
