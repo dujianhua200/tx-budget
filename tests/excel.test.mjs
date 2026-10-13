@@ -1,8 +1,14 @@
 /** Excel 导入/导出单测（Node 直跑，不依赖 Electron） */
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import ExcelJS from 'exceljs';
 import { calcProject } from '../src/engine/calc.mjs';
+
+// 临时文件写进测试自己建的目录，不依赖外部已存在的 /tmp/bt
+const TMP = mkdtempSync(join(tmpdir(), 'txbudget-test-'));
+const tmp = (f) => join(TMP, f);
 
 const require = createRequire(import.meta.url);
 const excel = require('../electron/excel.cjs');
@@ -33,9 +39,9 @@ const project = {
   ],
 };
 const result = calcProject(project, libs);
-await excel.exportProject('/tmp/bt/export-test.xlsx', project, result);
+await excel.exportProject(tmp('export-test.xlsx'), project, result);
 const wb = new ExcelJS.Workbook();
-await wb.xlsx.readFile('/tmp/bt/export-test.xlsx');
+await wb.xlsx.readFile(tmp('export-test.xlsx'));
 const t2 = wb.getWorksheet('表二');
 const findRow = (ws, label) => {
   for (let r = 1; r <= ws.rowCount; r++) if (String(ws.getCell(r, 1).value) === label) return ws.getCell(r, 2).value;
@@ -58,8 +64,8 @@ const wsq = wq.addWorksheet('定额库');
 wsq.addRow(['定额编号', '定额名称', '单位', '技工', '普工', '系数', '分册名称']);
 wsq.addRow(['TEST-001', '测试定额', '米', 1.5, 2.5, 1, '线路册']);
 wsq.addRow(['TEST-002', '测试定额二', '处', 0, 3, 0.5, '线路册']);
-await wq.xlsx.writeFile('/tmp/bt/quotas-test.xlsx');
-const imported = await excel.importQuotas('/tmp/bt/quotas-test.xlsx');
+await wq.xlsx.writeFile(tmp('quotas-test.xlsx'));
+const imported = await excel.importQuotas(tmp('quotas-test.xlsx'));
 eq('导入定额条数', imported.length, 2);
 eq('导入定额技工', imported[0].tech, 1.5);
 eq('导入定额系数', imported[1].coef, 0.5);
@@ -71,15 +77,15 @@ wsi.addRow(['工程名称', '定额编号', '项目名称', '数量', '工日系
 wsi.addRow(['工程A', 'TXL3-187', '挂钩法架设架空光缆 平原 6芯', 5, 1]);
 wsi.addRow(['工程A', 'TXL1-008', '', 2, 1]);
 wsi.addRow(['工程B', 'TXL3-187', '挂钩法架设架空光缆 平原 24芯', 3, 1]);
-await wi.xlsx.writeFile('/tmp/bt/import-test.xlsx');
-const imp = await excel.importQuantities('/tmp/bt/import-test.xlsx');
+await wi.xlsx.writeFile(tmp('import-test.xlsx'));
+const imp = await excel.importQuantities(tmp('import-test.xlsx'));
 eq('导入工程数', imp.projects.length, 2);
 eq('工程A 行数', imp.projects.find((p) => p.name === '工程A').quantities.length, 2);
 eq('工程B 数量', imp.projects.find((p) => p.name === '工程B').quantities[0].qty, 3);
 
 // ---- 导出定额库再读回 ----
-await excel.exportQuotas('/tmp/bt/quotas-export.xlsx', imported);
-const reimported = await excel.importQuotas('/tmp/bt/quotas-export.xlsx');
+await excel.exportQuotas(tmp('quotas-export.xlsx'), imported);
+const reimported = await excel.importQuotas(tmp('quotas-export.xlsx'));
 eq('定额导出再导入', reimported.length, 2);
 
 console.log(`\n${pass} 通过 / ${fail} 失败`);
