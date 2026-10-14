@@ -1713,6 +1713,11 @@ const flushSaves = () => saveQueueRef.current.flush();
   - LibreOffice 导出往返：`node scripts/verify-print-export.mjs` → 1708 个非空单元格，0 处不一致。
   - 布局比对：`tests/layoutCompare.test.mjs`（601 断言）——导出 vs 参考结算书（LO 转换后）逐项比对列宽/行高/合并/页边距/页面设置/标题字体，0 失败。
   - 打包后 Linux 冒烟：`npx electron-builder --linux --x64` 后 `TXBUDGET_SMOKE=1` 运行打包应用（xvfb 下），`SMOKE hasApi=true`，文本含顶栏（新建/打开/保存/工程管理/导出 + ✓ 已保存）、侧边栏（工程/当前工程九项/批量生成/基础库/取费规则/配置方案/设置）、底栏操作提示，窗口出现、界面完整、无渲染报错（dbus/GPU 行仅为无头环境噪音）。
+- 发布修正（v3.0.0 tag 首次 CI 失败后修复）：
+  - 现象：tag 推送触发的 Build macOS（38589334997）与 Build Windows（38589334895）均在 Test 步骤失败。
+  - 根因：`tests/layoutCompare.test.mjs` 直接读仓库外的参考 `.xls`（`~/workspace/user/files/`），CI 环境无此文件 → 退出 1。其余测试在 CI 中均已通过（链式执行停在 layoutCompare）。
+  - 修：参考版式提取为仓库内 fixture `tests/fixtures/reference-layout.json`（仅列宽/行高/合并/页边距/页面设置/标题字体，不含金额与单位信息），测试改为比对 fixture；断言数仍为 601，本地 `npm test` 仍 1702 通过 / 0 失败。
+  - 因 v3.0.0 tag 刚创建、未发布、无 Release 资产，tag 随修复提交移动到新提交（原提交 e35e87e 仅含坏测试，未产生任何发布物），CI 重新触发。
 - 已知遗留：
   - 未做 Mac/Windows 真机点按走查（本环境为 Linux 打包 + xvfb 冒烟；Mac/Windows 真机行为与 v3 界面点按以用户验收为准）。
   - `raw.json` 本次重序列化导致全文件格式刷新（值变更仅 13 处列宽）；后续改版式仍以改值 + 重跑生成器为准。
