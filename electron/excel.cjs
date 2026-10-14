@@ -85,83 +85,187 @@ async function exportQuotas(filePath, quotas) {
   return true;
 }
 
-async function exportProject(filePath, project, result) {
+/**
+ * 通用库导入/导出（v2 增量 4，§8.2/§8.3）。
+ * 列头与 libraryDefs 的列 label 对应（定额技工/普工沿用旧 importQuotas 的“技工/普工”表头，
+ * 导入时同时接受“技工/单位/普工/单位”别名）。布尔列导出写“是/否”，导入时反向解析。
+ * importLibrary 返回 {rows, errors}：errors 为字符串数组（文件级或“第N行：…”行级），
+ * 行级错误行不进 rows；errors 非空时调用方仍可预览有效行，但确认导入须先勾选知晓（§8.3）。
+ */
+const EXCEL_COLUMNS = {
+  quotas: [
+    { field: 'code', header: '定额编号', type: 'text', required: true },
+    { field: 'name', header: '定额名称', type: 'text', required: true, aliases: [] },
+    { field: 'unit', header: '单位', type: 'text' },
+    { field: 'tech', header: '技工', type: 'number', aliases: ['技工/单位'] },
+    { field: 'labor', header: '普工', type: 'number', aliases: ['普工/单位'] },
+    { field: 'coef', header: '系数', type: 'number' },
+    { field: 'book', header: '分册名称', type: 'text', aliases: ['分册'] },
+    { field: 'alias', header: '别名', type: 'text' },
+  ],
+  shortlist: [
+    { field: 'code', header: '定额编号', type: 'text', required: true },
+    { field: 'name', header: '定额名称', type: 'text', required: true },
+    { field: 'unit', header: '单位', type: 'text' },
+    { field: 'coef', header: '系数', type: 'number' },
+  ],
+  materials: [
+    { field: 'name', header: '名称', type: 'text', required: true },
+    { field: 'spec', header: '规格', type: 'text' },
+    { field: 'unit', header: '单位', type: 'text' },
+    { field: 'priceExcl', header: '除税单价', type: 'number' },
+    { field: 'supply', header: '供货', type: 'select', options: ['甲供', '乙供', '设备'] },
+    { field: 'remark', header: '备注', type: 'text' },
+  ],
+  rulesVariant: [
+    { field: 'quota', header: '定额编号', type: 'text', required: true },
+    { field: 'material', header: '材料', type: 'text', required: true },
+    { field: 'spec', header: '规格', type: 'text' },
+    { field: 'unit', header: '单位', type: 'text' },
+    { field: 'consumption', header: '单位消耗量', type: 'number' },
+    { field: 'supply', header: '供货', type: 'select', options: ['甲供', '乙供', '设备'] },
+    { field: 'kind', header: '类型', type: 'select', options: ['变体', '变体*', '通用', '备选'] },
+    { field: 'variant', header: '变体项目名称', type: 'text' },
+    { field: 'remark', header: '备注', type: 'text' },
+    { field: 'appliesTo', header: '适用工程', type: 'text' },
+  ],
+  rulesAlt: null, // 与 rulesVariant 同表同列，导出时复用 rulesVariant 列
+  machinePrices: [
+    { field: 'code', header: '机械编号', type: 'text', required: true },
+    { field: 'name', header: '机械名称', type: 'text', required: true },
+    { field: 'unit', header: '单位', type: 'text' },
+    { field: 'price', header: '台班单价', type: 'number' },
+  ],
+  instrumentPrices: [
+    { field: 'code', header: '仪表编号', type: 'text', required: true },
+    { field: 'name', header: '仪表名称', type: 'text', required: true },
+    { field: 'unit', header: '单位', type: 'text' },
+    { field: 'price', header: '台班单价', type: 'number' },
+  ],
+  quotaMachines: [
+    { field: 'quota', header: '定额编号', type: 'text', required: true },
+    { field: 'mcode', header: '机械编号', type: 'text', required: true },
+    { field: 'mname', header: '机械名称', type: 'text' },
+    { field: 'unit', header: '单位', type: 'text' },
+    { field: 'qty', header: '数量(台班)', type: 'number' },
+  ],
+  quotaInstruments: [
+    { field: 'quota', header: '定额编号', type: 'text', required: true },
+    { field: 'mcode', header: '仪表编号', type: 'text', required: true },
+    { field: 'mname', header: '仪表名称', type: 'text' },
+    { field: 'unit', header: '单位', type: 'text' },
+    { field: 'qty', header: '数量(台班)', type: 'number' },
+  ],
+  rates: [
+    { field: '工程类型', header: '工程类型', type: 'text', required: true },
+    { field: '费率项目', header: '费率项目', type: 'text', required: true },
+    { field: '数值', header: '数值', type: 'number' },
+    { field: '单位', header: '单位', type: 'text' },
+  ],
+  table5Fees: [
+    { field: 'key', header: '费用 key', type: 'text', required: true },
+    { field: 'name', header: '费用名称', type: 'text', required: true },
+    { field: 'basis', header: '取费依据', type: 'select', options: ['manual', 'preDiscountExclTax', 'afterDiscountExclTax', 'laborTotal', 'fixed', 'surveyKm', 'sum'] },
+    { field: 'rate', header: '费率', type: 'number' },
+    { field: 'vatRate', header: '增值税率', type: 'number' },
+    { field: 'amount', header: '固定金额', type: 'number' },
+    { field: 'enabled', header: '启用', type: 'checkbox' },
+    { field: 'order', header: '序号', type: 'number' },
+    { field: 'note', header: '备注', type: 'text' },
+  ],
+};
+EXCEL_COLUMNS.rulesAlt = EXCEL_COLUMNS.rulesVariant;
+
+const parseBool = (v) => {
+  if (typeof v === 'boolean') return v;
+  const s = String(v ?? '').trim();
+  if (['是', 'true', '1', '启用', 'TRUE'].includes(s)) return true;
+  if (['否', 'false', '0', '禁用', 'FALSE'].includes(s)) return false;
+  return null;
+};
+
+async function importLibrary(filePath, kind) {
+  const cols = EXCEL_COLUMNS[kind];
+  if (!cols) return { rows: [], errors: [`未知库类型：${kind}`] };
   const wb = new ExcelJS.Workbook();
-  wb.creator = '通信概预算';
-  const money = (n) => (typeof n === 'number' ? Math.round(n * 100) / 100 : n);
-  const mk = (name, headers) => {
-    const ws = wb.addWorksheet(name);
-    ws.columns = headers.map((h) => ({ header: h, width: 16 }));
-    ws.getRow(1).font = { bold: true };
-    return ws;
-  };
-  const t1 = mk('表一', ['费用名称', '除税价', '增值税', '含税价']);
-  [
-    ['建筑安装工程费（折前）', result.table1.beforeDiscount, result.table1.taxBefore, result.table1.totalBefore],
-    ['建筑安装工程费（折后）', result.table1.afterDiscount, result.table1.taxAfter, result.table1.totalAfter],
-    ['工程建设其他费', result.table1.otherFee, result.table1.otherVat, result.table1.otherIncl],
-    ['合计', result.table1.sumExcl, result.table1.sumVat, result.table1.sumIncl],
-    ['需要安装的设备费', result.table1.equipFee, result.table1.equipVat, result.table1.equipIncl],
-    ['总计', result.table1.grandExcl, result.table1.grandVat, result.table1.grandIncl],
-  ].forEach((r) => t1.addRow(r.map(money)));
-  const t2 = mk('表二', ['费用名称', '金额（元）']);
-  const R = result.table2;
-  [
-    ['人工费', R.laborTotal], ['其中：技工费', R.techFee], ['其中：普工费', R.laborFee],
-    ['材料费', R.matTotal], ['其中：主要材料费', R.mainMat], ['其中：甲供材料', R.jiaMat],
-    ['其中：乙供材料', R.yiMat], ['其中：辅助材料费', R.auxMat],
-    ['机械使用费', R.machineFee], ['仪器仪表费', R.instrumentFee],
-    ['直接工程费', R.directFee], ['措施费', R.measureFee],
-    ['其中：环境保护费', R.envFee], ['其中：文明施工费', R.civilFee],
-    ['其中：工地器材搬运费', R.carryFee], ['其中：工程干扰费', R.disturbFee],
-    ['其中：工程点交、场地清理费', R.handoverFee], ['其中：临时设施费', R.tempFee],
-    ['其中：工程车辆使用费', R.vehicleFee], ['其中：夜间施工增加费', R.nightFee],
-    ['其中：冬雨季施工增加费', R.winterFee], ['其中：生产工具用具使用费', R.toolFee],
-    ['其中：施工用水电蒸汽费', R.utilityFee], ['其中：已完工程及设备保护费', R.protectFee],
-    ['其中：施工队伍调遣费', R.dispatchFee],
-    ['直接费', R.directTotal], ['规费', R.regFee], ['其中：社会保障费', R.socialFee],
-    ['其中：住房公积金', R.housingFee], ['其中：危险作业意外伤害保险费', R.accidentFee],
-    ['企业管理费', R.mgmtFee], ['间接费', R.indirectTotal], ['利润', R.profit],
-    ['建筑安装工程费（除税价）', R.exclTax], ['销项税额', R.outputTax],
-    ['建筑安装工程费（含税价）', R.inclTax],
-  ].forEach((r) => t2.addRow(r.map(money)));
-  const t3a = mk('表三甲', ['定额编号', '项目名称', '单位', '数量', '技工单耗', '普工单耗', '技工工日', '普工工日']);
-  result.table3A.forEach((r) => t3a.addRow([r.code, r.name, r.unit, money(r.qty), r.techUnit, r.laborUnit, money(r.tech), money(r.labor)]));
-  t3a.addRow(['小计', '', '', '', '', '', money(result.techSub), money(result.laborSub)]);
-  t3a.addRow(['调整', '', '', '', '', '', money(result.techDays - result.techSub), money(result.laborDays - result.laborSub)]);
-  t3a.addRow(['合计', '', '', '', '', '', money(result.techDays), money(result.laborDays)]);
-  const t3b = mk('表三乙', ['定额编号', '定额名称', '数量', '机械名称', '单位', '消耗量', '单价', '台班数', '金额']);
-  result.table3B.rows.forEach((r) => t3b.addRow([r.quota, r.quotaName, money(r.qty), r.equipName, r.equipUnit, r.consumption, r.price, money(r.sessions), money(r.amount)]));
-  t3b.addRow(['合计', '', '', '', '', '', '', '', money(result.table3B.total)]);
-  const t3c = mk('表三丙', ['定额编号', '定额名称', '数量', '仪表名称', '单位', '消耗量', '单价', '台班数', '金额']);
-  result.table3C.rows.forEach((r) => t3c.addRow([r.quota, r.quotaName, money(r.qty), r.equipName, r.equipUnit, r.consumption, r.price, money(r.sessions), money(r.amount)]));
-  t3c.addRow(['合计', '', '', '', '', '', '', '', money(result.table3C.total)]);
-  const matSheet = (name, t) => {
-    const ws = mk(name, ['名称', '规格', '单位', '数量', '除税单价', '增值税/单位', '含税单价', '除税合计', '增值税合计', '含税合计']);
-    t.rows.forEach((r) => ws.addRow([r.name, r.spec, r.unit, money(r.qty), money(r.priceExcl), money(r.priceVat), money(r.priceIncl), money(r.amtExcl), money(r.amtVat), money(r.amtIncl)]));
-    ws.addRow(['合计', '', '', '', '', '', '', money(t.totalExcl), money(t.totalVat), money(t.totalIncl)]);
-  };
-  matSheet('表四甲（主材）', result.table4A);
-  matSheet('表四乙(乙供）', result.table4B);
-  matSheet('表四甲（设备）', result.table4Equip);
-  const t5 = mk('表五', ['费用名称', '除税价', '增值税', '含税价']);
-  const F = result.table5;
-  [['项目建设管理费', F.mgmt2, F.mgmt2Vat, F.mgmt2Incl], ['勘察设计费', F.designTotal, F.designTotalVat, F.designTotal + F.designTotalVat],
-   ['其中：勘察费', F.surveyFee, F.surveyVat, F.surveyFee + F.surveyVat], ['其中：设计费', F.designFee, F.designVat, F.designFee + F.designVat],
-   ['安全生产费', F.safetyFee, F.safetyVat, F.safetyIncl], ['总计', F.totalExcl, F.totalVat, F.totalIncl]]
-    .forEach((r) => t5.addRow(r.map(money)));
-  const hz = mk('汇总表', ['费用名称', '除税价', '增值税', '含税价']);
-  const S = result.summary;
-  [['施工费（折后）', S.constructionExcl, S.constructionVat, S.constructionIncl],
-   ['工程建设其它费', S.other, S.otherVat, S.otherIncl],
-   ['自购物资', S.selfMat, S.selfMatVat, S.selfMatIncl],
-   ['总计', S.totalExcl, S.totalVat, S.totalIncl]].forEach((r) => hz.addRow(r.map(money)));
-  const q = mk('工程量明细', ['定额编号', '项目名称', '单位', '数量', '工日系数']);
-  (project.quantities || []).forEach((r) => q.addRow([r.quota, r.variant, r.unit, r.qty, r.coef]));
-  const inf = mk('工程信息', ['项目', '内容']);
-  Object.entries(project.info || {}).forEach(([k, v]) => inf.addRow([k, v]));
+  try {
+    await wb.xlsx.readFile(filePath);
+  } catch (e) {
+    return { rows: [], errors: [`文件打不开（${filePath}）：${e.message}`] };
+  }
+  const ws = wb.worksheets[0];
+  if (!ws) return { rows: [], errors: ['文件无工作表'] };
+  const headerToCol = {};
+  for (let c = 1; c <= ws.columnCount; c++) {
+    const v = String(ws.getCell(1, c).value ?? '').trim();
+    if (v) headerToCol[v] = c;
+  }
+  const colIndex = {};
+  const missing = [];
+  for (const col of cols) {
+    const found = headerToCol[col.header] ?? (col.aliases || []).map((a) => headerToCol[a]).find((x) => x != null);
+    if (found) colIndex[col.field] = found;
+    else if (col.required) missing.push(col.header);
+  }
+  if (missing.length) return { rows: [], errors: [`表头缺失必填列：${missing.join('、')}（首行应为：${cols.map((c) => c.header).join(' / ')}）`] };
+  const rows = [];
+  const errors = [];
+  for (let r = 2; r <= ws.rowCount; r++) {
+    const raw = {};
+    let allEmpty = true;
+    for (const col of cols) {
+      const idx = colIndex[col.field];
+      const v = idx ? ws.getCell(r, idx).value : undefined;
+      if (v !== '' && v != null) allEmpty = false;
+      raw[col.field] = v;
+    }
+    if (allEmpty) continue;
+    const row = {};
+    const rowErrors = [];
+    for (const col of cols) {
+      const v = raw[col.field];
+      if (col.type === 'number') {
+        if (v === '' || v == null) row[col.field] = null;
+        else if (Number.isFinite(Number(v))) row[col.field] = Number(v);
+        else rowErrors.push(`${col.header}不是有效数字`);
+      } else if (col.type === 'checkbox') {
+        if (v === '' || v == null) row[col.field] = true;
+        else {
+          const b = parseBool(v);
+          if (b == null) rowErrors.push(`${col.header}应为是/否`);
+          else row[col.field] = b;
+        }
+      } else if (col.type === 'select') {
+        row[col.field] = v == null ? '' : String(v).trim();
+        if (row[col.field] && !col.options.includes(row[col.field])) rowErrors.push(`${col.header}非法取值“${row[col.field]}”`);
+      } else {
+        row[col.field] = v == null ? '' : String(v).trim();
+      }
+      if (col.required && (row[col.field] === '' || row[col.field] == null)) rowErrors.push(`${col.header}必填`);
+    }
+    if (rowErrors.length) errors.push(`第 ${r} 行：${rowErrors.join('；')}`);
+    else rows.push(row);
+  }
+  return { rows, errors };
+}
+
+async function exportLibrary(filePath, kind, rows) {
+  const cols = EXCEL_COLUMNS[kind];
+  if (!cols) throw new Error(`未知库类型：${kind}`);
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Sheet1');
+  ws.columns = cols.map((c) => ({ header: c.header, width: 18 }));
+  ws.getRow(1).font = { bold: true };
+  for (const row of rows || []) {
+    ws.addRow(cols.map((c) => {
+      const v = row?.[c.field];
+      if (c.type === 'checkbox') return v ? '是' : '否';
+      if (v == null || v === '') return null;
+      return v;
+    }));
+  }
   await wb.xlsx.writeFile(filePath);
   return true;
 }
 
-module.exports = { importQuantities, importQuotas, exportQuotas, exportProject };
+module.exports = { importQuantities, importQuotas, exportQuotas, importLibrary, exportLibrary, EXCEL_COLUMNS };

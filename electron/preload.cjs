@@ -1,12 +1,20 @@
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   getDb: () => ipcRenderer.invoke('db:get'),
+  reloadDb: () => ipcRenderer.invoke('db:reload'),
   saveDb: (db) => ipcRenderer.invoke('db:save', db),
+  savePatch: (args) => ipcRenderer.invoke('db:savePatch', args),
+  getVersion: () => ipcRenderer.invoke('app:getVersion'),
   openFile: (filters) => ipcRenderer.invoke('dialog:openFile', { filters }),
   saveFile: (opts) => ipcRenderer.invoke('dialog:saveFile', opts),
   openDir: () => ipcRenderer.invoke('dialog:openDir'),
   importQuantities: (filePath) => ipcRenderer.invoke('excel:importQuantities', filePath),
   importQuotas: (filePath) => ipcRenderer.invoke('excel:importQuotas', filePath),
   exportQuotas: (args) => ipcRenderer.invoke('excel:exportQuotas', args),
-  exportProject: (args) => ipcRenderer.invoke('excel:exportProject', args),
+  importLibrary: (args) => ipcRenderer.invoke('excel:importLibrary', args),
+  exportLibrary: (args) => ipcRenderer.invoke('excel:exportLibrary', args),
+  exportProfile: (args) => ipcRenderer.invoke('db:exportProfile', args),
+  importProfile: (args) => ipcRenderer.invoke('db:importProfile', args),
+  exportBackup: (args) => ipcRenderer.invoke('db:exportBackup', args),
+  exportBudgetBook: (args) => ipcRenderer.invoke('excel:exportBudgetBook', args),
 });

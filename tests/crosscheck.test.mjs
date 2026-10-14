@@ -1,15 +1,13 @@
 /** 引擎 vs LibreOffice 重算母版：全链路逐项比对 */
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 
-// LO 重算值是本地验证产物，不进仓库；CI 上缺失时跳过本测试，不阻塞构建。
-if (!existsSync('/tmp/bt/lo_values.json')) {
-  console.log('跳过 crosscheck：/tmp/bt/lo_values.json 不存在（本地 LibreOffice 验证产物）');
-  process.exit(0);
-}
+// 增量 6：夹具进仓库（tests/fixtures/lo_values.json），由
+// scripts/rebuild_crosscheck_fixture.py 从 v3.0 母版经 LibreOffice 真实重算生成，
+// 不再依赖 /tmp 临时文件；缺失夹具时直接失败，不许再跳过。
+const lo = JSON.parse(readFileSync(new URL('./fixtures/lo_values.json', import.meta.url), 'utf-8'));
 import { calcProject } from '../src/engine/calc.mjs';
 
 const seed = JSON.parse(readFileSync(new URL('../data/seed.json', import.meta.url), 'utf-8'));
-const lo = JSON.parse(readFileSync('/tmp/bt/lo_values.json', 'utf-8'));
 const libs = {
   quotas: seed.quotas,
   materials: [...seed.materials_jia.map((m) => ({ ...m, supply: '甲供' })),
@@ -65,15 +63,29 @@ const checks = [
   ['表二 I23(利润)', res.table2.profit, loFixed['表二!I23']],
   ['表二 I24(销项税)', res.table2.outputTax, loFixed['表二!I24']],
   ['表二 D6(除税价)', res.table2.exclTax, loFixed['表二!D6']],
-  ['表二 D5(含税价)', res.table2.inclTax, loFixed['表二!D5']],
-  ['表一 G6(折前)', res.table1.beforeDiscount, loFixed['表一!G6']],
+  ['表二 D5(含税价)', res.table2.inclTax, loFixed['表二!D5']],  ['表一 G6(折前)', res.table1.beforeDiscount, loFixed['表一!G6']],
   ['表一 G7(折后)', res.table1.afterDiscount, loFixed['表一!G7']],
-  ['表一 J9(合计除税)', res.table1.sumExcl, loFixed['表一!J9']],
-  ['表一 L9(合计含税)', res.table1.sumIncl, loFixed['表一!L9']],
-  ['表一 L12(总计含税)', res.table1.grandIncl, loFixed['表一!L12']],
-  ['表五 D23(其他费除税)', res.table5.totalExcl, loFixed['表五!D23']],
-  ['表五 E23(其他费增值税)', res.table5.totalVat, loFixed['表五!E23']],
-  ['汇总表 L11(总计含税)', res.summary.totalIncl, loFixed['汇总表!L11']],
+  // 增量 6 修正（增量 2 遗留：表一合计含表五总计，故安全生产费口径变化同样影响表一；
+  // 增量 2 只换算了表五断言，漏了表一三处断言，合成夹具掩盖了该遗漏，真实 LO 夹具暴露）：
+  // 合计除税 = LO 值 + 折前除税价×0.005（安全生产费 1.5%→2% 的除税差额）
+  ['表一 J9(合计除税，新口径)', res.table1.sumExcl, loFixed['表一!J9'] + loFixed['表二!D6'] * 0.005],
+  // 增量 2 口径：taxAfter 改按折后销项税额（v1 是 outputTax − 甲供增值税），故含税合计 = LO 值 + 甲供增值税
+  // 增量 6 补：再 + 折前除税价×0.005（安全生产费除税差额）− 折前除税价×0.015×0.09（旧安全生产费增值税归零）
+  ['表一 L9(合计含税，新口径)', res.table1.sumIncl,
+    loFixed['表一!L9'] + loFixed['表四甲（主材）!J63']
+    + loFixed['表二!D6'] * 0.005 - loFixed['表二!D6'] * 0.015 * 0.09],
+  ['表一 L12(总计含税，新口径)', res.table1.grandIncl,
+    loFixed['表一!L12'] + loFixed['表四甲（主材）!J63']
+    + loFixed['表二!D6'] * 0.005 - loFixed['表二!D6'] * 0.015 * 0.09],
+  // 增量 2 口径：安全生产费 1.5%+9% → 2%+0，故表五总计除税 = LO 值 + 折前除税价×0.005，
+  // 总计增值税 = LO 值 − 折前除税价×0.015×0.09（旧安全生产费增值税部分归零）
+  ['表五 D23(其他费除税，新口径)', res.table5.totalExcl, loFixed['表五!D23'] + loFixed['表二!D6'] * 0.005],
+  ['表五 E23(其他费增值税，新口径)', res.table5.totalVat, loFixed['表五!E23'] - loFixed['表二!D6'] * 0.015 * 0.09],
+  // 增量 2 口径：汇总表 = 表一折后建安费 + 表五总计（v1 的 ×0.4/自购物资公式已删除）。
+  // 折扣=1 时折后除税价 = LO 表二 D6，折后销项税额 = LO 表二 I24。
+  ['汇总表 L11(总计含税，新口径)', res.summary.totalIncl,
+    loFixed['表二!D6'] + (loFixed['表五!D23'] + loFixed['表二!D6'] * 0.005)
+    + loFixed['表二!I24'] + (loFixed['表五!E23'] - loFixed['表二!D6'] * 0.015 * 0.09)],
 ];
 for (const [label, e, l] of checks) cmp(label, e, l);
 console.log(`\n${pass} 通过 / ${fail} 失败`);

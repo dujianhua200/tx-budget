@@ -12,6 +12,7 @@ const tmp = (f) => join(TMP, f);
 
 const require = createRequire(import.meta.url);
 const excel = require('../electron/excel.cjs');
+const { exportBudgetBook } = require('../electron/printExport.cjs');
 const seed = JSON.parse(readFileSync(new URL('../data/seed.json', import.meta.url), 'utf-8'));
 
 let pass = 0, fail = 0;
@@ -39,23 +40,24 @@ const project = {
   ],
 };
 const result = calcProject(project, libs);
-await excel.exportProject(tmp('export-test.xlsx'), project, result);
+const t2After = result.table2After ?? result.table2;
+await exportBudgetBook(tmp('export-test.xlsx'), project, result, null);
 const wb = new ExcelJS.Workbook();
 await wb.xlsx.readFile(tmp('export-test.xlsx'));
-const t2 = wb.getWorksheet('表二');
-const findRow = (ws, label) => {
-  for (let r = 1; r <= ws.rowCount; r++) if (String(ws.getCell(r, 1).value) === label) return ws.getCell(r, 2).value;
+eq('导出 11 张表', wb.worksheets.length, 11);
+const t2 = wb.getWorksheet('工程费用表(表二)');
+const findRow = (ws, label, labelCol, valueCol) => {
+  for (let r = 1; r <= ws.rowCount; r++) if (String(ws.getCell(r, labelCol).value) === label) return ws.getCell(r, valueCol).value;
   return undefined;
 };
-eq('导出表二 人工费', findRow(t2, '人工费'), result.table2.laborTotal);
-eq('导出表二 除税价', findRow(t2, '建筑安装工程费（除税价）'), result.table2.exclTax);
-eq('导出表二 调遣费', findRow(t2, '其中：施工队伍调遣费'), result.table2.dispatchFee);
-const t1 = wb.getWorksheet('表一');
-const t1Row = (() => { for (let r = 1; r <= t1.rowCount; r++) if (String(t1.getCell(r, 1).value) === '总计') return r; return 0; })();
-eq('导出表一 总计含税', t1.getCell(t1Row, 4).value, result.table1.grandIncl);
-eq('导出表一 总计除税', t1.getCell(t1Row, 2).value, result.table1.grandExcl);
-const t3b = wb.getWorksheet('表三乙');
-eq('导出表三乙 合计', t3b.getCell(t3b.rowCount, 9).value, result.table3B.total);
+eq('导出表二 人工费', findRow(t2, '人工费', 2, 4), t2After.laborTotal);
+eq('导出表二 除税价', findRow(t2, '建安工程费(除税价)', 2, 4), t2After.exclTax);
+eq('导出表二 调遣费', findRow(t2, '施工队伍调遣费', 7, 10), t2After.dispatchFee);
+const t1 = wb.getWorksheet('工程总表(表一)');
+eq('导出表一 总计含税', findRow(t1, '总 计', 3, 12), result.table1.grandIncl);
+eq('导出表一 总计除税', findRow(t1, '总 计', 3, 10), result.table1.grandExcl);
+const t3b = wb.getWorksheet('机械台班表(表三)乙');
+eq('导出表三乙 合计', findRow(t3b, '小计', 7, 10), result.table3B.total);
 console.log('导出 sheets:', wb.worksheets.map((w) => w.name).join(','));
 
 // ---- 导入定额库：写一个小定额表再读回 ----

@@ -8,11 +8,26 @@
  *   --> 定额主材关联(变体 / 变体星 / 通用 / 备选) --> 甲供/乙供/设备主材数量
  *   --> 表四甲/表四乙(除税/增值税/含税) --> 表二(取费) --> 表一/表五/汇总表
  *
+ * v2 口径（设计文档 §6、§7，增量 2）：
+ *   - 表二：先算 table2Before（等价于 v1 在 discount=1 时的表二），再调 applyDiscount 得
+ *     table2After；表一/表五/汇总表全部以 table2Before/table2After 为输入。
+ *     v1 的表一折扣快捷公式已删除（实测错误：参考样本算出 280709.46，参考折后为 265267.65）。
+ *   - 安全生产费 = 折前建安工程费除税价 × 2%（财资〔2022〕136 号）+ 增值税 0；费率可配置。
+ *   - 汇总表：建安费 = 表一折后建安费 = 表二折后除税价（含主材）；v1 的 ×0.4 公式已删除。
+ *   - 表五：按配置 table5Fees 逐项取费（basis 见 profiles.js DEFAULT_TABLE5_FEES）。
+ *   - 费率：具名读取（libs.rates 优先；无 rates 但有 rateGrid 时经 rateGridToRates 转换）。
+ *     winterRate 非 null 覆盖值直接用（0 是显式 0），null 则按地区查 winterTable。
+ *   - 孤儿工程量行（定额编号不在库中）返回 warnings，不参与计算，不静默丢数。
+ *
  * 约定：
  *   - 材料数量用原量 J（不加权），工日用加权量 AB（与母版一致）
  *   - 数量为 0 的行不参与计算；备选规则默认不计（enabled=false 可开启）
  *   - 金额 ROUND(x,2) 与 Excel 一致（均为非负数）
  */
+
+import { rateGridToRates, winterRateForNamed, RATE_FIELD_DEFS } from './rates.mjs';
+import { applyDiscount, DEFAULT_NO_DISCOUNT_KEYS, DEFAULT_ZERO_AFTER_DISCOUNT_KEYS } from './discount.mjs';
+import { DEFAULT_TABLE5_FEES, DEFAULT_DISPATCH, resolveRates } from '../lib/profiles.js';
 
 export const PROJECT_TYPES = [
   '无线通信设备安装工程',
@@ -22,29 +37,12 @@ export const PROJECT_TYPES = [
   '通信管道工程',
 ];
 
-/** 费率矩阵 HLOOKUP 行号 -> 名称（对应母版 费率!G3:K28 的 HLOOKUP 第二参数） */
+/**
+ * 费率矩阵 HLOOKUP 行号 -> 名称（兼容导出：由 RATE_FIELD_DEFS 派生 + 增值税率行）。
+ * 引擎本身不再用魔法下标读写；Settings.jsx 费率 Tab 仍用本表过渡，增量 4 费率页重做时删除。
+ */
 export const RATE_ITEMS = [
-  { n: 3, key: 'techPrice', name: '技工费' },
-  { n: 4, key: 'laborPrice', name: '普工费' },
-  { n: 5, key: 'auxRate', name: '辅材费率' },
-  { n: 6, key: 'envRate', name: '环境保护费费' },
-  { n: 7, key: 'civilRate', name: '文明施工费' },
-  { n: 8, key: 'carryRate', name: '工地器材搬运费' },
-  { n: 9, key: 'disturbRate', name: '工程干扰费' },
-  { n: 10, key: 'handoverRate', name: '工程点交、场地清理费' },
-  { n: 11, key: 'tempNearRate', name: '临时设施费(35km以内)' },
-  { n: 12, key: 'tempFarRate', name: '临时设施费(35km以上)' },
-  { n: 13, key: 'vehicleRate', name: '工程车辆使用费' },
-  { n: 14, key: 'nightRate', name: '夜间施工增加费' },
-  { n: 15, key: 'winterRate', name: '冬雨季施工增加费' },
-  { n: 16, key: 'toolRate', name: '生产工具用具使用费' },
-  { n: 17, key: 'utilityRate', name: '施工用水电蒸汽费' },
-  { n: 19, key: 'protectRate', name: '已完成工程及设备保护费' },
-  { n: 21, key: 'socialRate', name: '社会保障金' },
-  { n: 22, key: 'housingRate', name: '住房公积金' },
-  { n: 23, key: 'accidentRate', name: '危险作业意外伤害保险费' },
-  { n: 24, key: 'mgmtRate', name: '企业管理费' },
-  { n: 25, key: 'profitRate', name: '利润率' },
+  ...RATE_FIELD_DEFS.map((d) => ({ n: d.gridN, key: d.key, name: d.name })),
   { n: 26, key: 'taxRate', name: '增值税率' },
 ];
 
@@ -75,23 +73,6 @@ export const DEFAULT_INFO = {
   编制: '',
 };
 
-/** 调遣单价表：里程阈值 -> 单价（母版 费率!G31:Z32 前 11 列） */
-const DISPATCH_PRICE = [
-  [0, 0], [35.0001, 141], [100.0001, 174], [200.0001, 240], [400.0001, 295],
-  [600.0001, 356], [800.0001, 372], [1000.0001, 417], [1200.0001, 565],
-  [1400.0001, 598], [1600.0001, 634],
-];
-/** 调遣人数表：工日阈值 -> 人数 */
-const DISPATCH_PEOPLE_EQUIP = [
-  [0, 5], [500.0001, 10], [1000.0001, 17], [2000.0001, 24], [3000.0001, 30], [4000.0001, 35],
-];
-const DISPATCH_PEOPLE_LINE = [
-  [0, 5], [500.0001, 10], [1000.0001, 17], [2000.0001, 24], [3000.0001, 30],
-  [4000.0001, 35], [5000.0001, 40], [6000.0001, 45], [7000.0001, 50],
-  [8000.0001, 55], [9000.0001, 60], [10000.0001, 80], [15000.0001, 95],
-  [20000.0001, 105], [25000.0001, 120],
-];
-
 const r2 = (x) => Math.round((x + Number.EPSILON) * 100) / 100;
 const num = (x) => (typeof x === 'number' && Number.isFinite(x) ? x : 0);
 /** Excel HLOOKUP 近似匹配：取 <= key 的最大阈值对应的值 */
@@ -104,55 +85,140 @@ function approxLookup(key, table) {
   return v;
 }
 
-export function rateFor(rateGrid, projectType, hlookupN) {
-  const col = PROJECT_TYPES.indexOf(projectType);
-  if (col < 0) return 0;
-  const row = rateGrid[3 + hlookupN - 2];
-  if (!row) return 0;
-  const v = row[6 + col];
-  return typeof v === 'number' ? v : 0;
+/** 勘察费：按勘察长度分段（v1 公式保留，§7.3）。勘察长度 = 测量类定额原量 / 10。 */
+function surveyFeeFor(surveyKm) {
+  if (!(surveyKm > 0)) return 0;
+  if (surveyKm <= 1) return 2000 * 0.8;
+  if (surveyKm <= 10) return (2000 + (surveyKm - 1) * 1530) * 0.8;
+  if (surveyKm <= 50) return (15770 + (surveyKm - 10) * 1130) * 0.8;
+  return surveyKm * 1219.4 * 0.8;
 }
 
-/** 冬雨季费率：按 冬雨季施工费（Ⅰ/Ⅱ/Ⅲ类地区）在冬雨季表中查（母版 费率!T18:V19） */
-export function winterRateFor(winterTable, region) {
-  if (!winterTable) return 0;
-  const v = winterTable[region];
-  return typeof v === 'number' ? v : 0;
+/**
+ * 解析具名费率（§2.2.1、§10 B8）。
+ * @returns {{ rate: object, warnings: array }} rate 含全部具名字段 + winterRate（生效值）+ jiaTax/yiTax/outputTax/taxRate。
+ */
+function resolveNamedRates(libs, projectType, region) {
+  const warnings = [];
+  const rate = {};
+  const knownType = PROJECT_TYPES.includes(projectType);
+  if (!knownType) {
+    warnings.push({ code: 'unknownProjectType', message: `未知工程类型“${projectType}”，费率按 0 计算` });
+    for (const def of RATE_FIELD_DEFS) rate[def.key] = 0;
+    rate.winterRate = 0;
+    return { rate, warnings };
+  }
+  let named = null;
+  let source = 'none';
+  if (libs.rates?.byProjectType) {
+    named = libs.rates.byProjectType[projectType] || {};
+    source = 'named';
+  } else if (libs.rateGrid) {
+    named = rateGridToRates(libs.rateGrid)[projectType] || {};
+    source = 'grid';
+  }
+  if (source === 'none') {
+    warnings.push({ code: 'missingRate', message: '未提供费率（既无 rates 也无 rateGrid），费率按 0 计算' });
+    for (const def of RATE_FIELD_DEFS) rate[def.key] = 0;
+    rate.winterRate = 0;
+    return { rate, warnings };
+  }
+  for (const def of RATE_FIELD_DEFS) {
+    if (def.key === 'winterRate') continue; // 冬雨季单独处理（null = 查表）
+    const v = named[def.key];
+    if (typeof v === 'number') rate[def.key] = v;
+    else {
+      // rateGrid 转换路径：null 已转为 0，不告警（沿用 v1 静默行为）；具名路径缺失字段才告警。
+      if (source === 'named') {
+        warnings.push({ code: `missingRate:${def.key}`, message: `费率缺失：${projectType} / ${def.name}，按 0 计算` });
+      }
+      rate[def.key] = 0;
+    }
+  }
+  // 冬雨季：具名 winterRate 非 null 直接用（0 是显式 0）；null 则按地区查 winterTable。
+  const ratesLike = libs.rates
+    ? libs.rates
+    : { byProjectType: rateGridToRates(libs.rateGrid), winterTable: libs.winterTable || {} };
+  rate.winterRate = winterRateForNamed(ratesLike, projectType, region);
+  if (named.winterRate == null && typeof ratesLike.winterTable?.[region] !== 'number') {
+    warnings.push({ code: 'missingRate:winterTable', message: `冬雨季费率缺失：地区“${region}”不在 winterTable 中，按 0 计算` });
+  }
+  return { rate, warnings };
 }
 
 /**
  * 计算一个工程的全部预算表
- * @param {object} project { info, quantities:[{quota,variant,unit,qty,coef}], materialAdjust:[{key,delta}], materialPriceOverrides:[{key,priceExcl}], ruleOverrides:[{ruleId,enabled}] }
- * @param {object} libs { quotas, materials, rules, rateGrid, machinePrices, instrumentPrices, quotaMachines, quotaInstruments }
+ * @param {object} project { info, quantities:[{id?,quota,variant,unit,qty,coef}], materialAdjust, materialPriceOverrides, ruleOverrides, rateOverrides, table5Overrides }
+ * @param {object} libs { quotas, materials, rules, rates?, winterTable?, discountRule?, table5Fees?, dispatch?, machinePrices, instrumentPrices, quotaMachines, quotaInstruments, rateGrid?（兼容旧调用，引擎不再直接读） }
  */
 export function calcProject(project, libs) {
+  const L = libs || {};
   const info = { ...DEFAULT_INFO, ...(project.info || {}) };
-  const rate = {};
-  for (const item of RATE_ITEMS) rate[item.key] = rateFor(libs.rateGrid, info.工程类型, item.n);
-  // 冬雨季：母版冬雨季表按地区类别查（矩阵中该行是 TEXT/HLOOKUP 公式，不直接取）
-  rate.winterRate = winterRateFor(libs.winterTable, info.冬雨季施工费);
-  // 增值税率：母版 = 综合信息!B32（乙供增值税），不是矩阵常量
-  rate.taxRate = num(info.乙供增值税 ?? 0.09);
-  if (project.rateOverrides?.taxRate != null) rate.taxRate = project.rateOverrides.taxRate;
-  const jiaTax = num(project.rateOverrides?.jiaTax ?? info.甲供增值税 ?? 0.13);
-  const yiTax = num(project.rateOverrides?.yiTax ?? info.乙供增值税 ?? 0.09);
-  const discount = num(project.rateOverrides?.discount ?? info.施工折扣 ?? 1);
+  const warnings = [];
 
-  const quotaByCode = new Map(libs.quotas.map((q) => [q.code, q]));
-  const matByKey = new Map(libs.materials.map((m) => [`${m.name}|${m.spec}`, m]));
-  const machinePrice = new Map(libs.machinePrices.map((m) => [m.code, m.price]));
-  const instrumentPrice = new Map(libs.instrumentPrices.map((m) => [m.code, m.price]));
+  // ---- 0. 费率 + 折扣/增值税率（§2.4 优先级：rateOverrides > info > 配置方案 > 兜底）----
+  const { rate, warnings: rateWarnings } = resolveNamedRates(L, info.工程类型, info.冬雨季施工费);
+  warnings.push(...rateWarnings);
+  const resolved = resolveRates(
+    { rates: L.rates || null, discountRule: L.discountRule || null },
+    project,
+  );
+  let discount = resolved.discount;
+  if (!(typeof discount === 'number' && Number.isFinite(discount) && discount > 0 && discount <= 1)) {
+    warnings.push({ code: 'invalidDiscount', message: `折扣率非法：${String(resolved.discount)}，按 1 计算` });
+    discount = 1;
+  }
+  const jiaTax = resolved.jiaTax;
+  const yiTax = resolved.yiTax;
+  const outputTaxRate = resolved.outputTax;
+  const safetyVatFallback = resolved.safetyVat;
+  rate.jiaTax = jiaTax;
+  rate.yiTax = yiTax;
+  rate.outputTax = outputTaxRate;
+  rate.taxRate = outputTaxRate; // 兼容旧 rate.taxRate 语义（= 销项税额税率）
+
+  const quotas = L.quotas || [];
+  const materials = L.materials || [];
+  const rules = L.rules || [];
+  const quotaByCode = new Map();
+  const duplicateCodes = new Set();
+  for (const q of quotas) {
+    if (quotaByCode.has(q.code)) duplicateCodes.add(q.code);
+    else quotaByCode.set(q.code, q);
+  }
+  const matByKey = new Map(materials.map((m) => [`${m.name}|${m.spec}`, m]));
+  const machinePrice = new Map((L.machinePrices || []).map((m) => [m.code, m.price]));
+  const instrumentPrice = new Map((L.instrumentPrices || []).map((m) => [m.code, m.price]));
   const ruleEnabled = new Map((project.ruleOverrides || []).map((o) => [o.ruleId, !!o.enabled]));
 
   // ---- 1. 工程量汇总：按定额编号汇总原量 J / 加权量 AB；按 (编号,变体) 汇总原量 ----
+  // 孤儿行（编号不在库中）、无效行（数量<0 / 系数<=0）记警告且不参与计算（B7）。
   const byQuota = new Map(); // code -> { raw, weighted }
   const byVariant = new Map(); // code|variant -> raw qty
   const surveyCodes = ['TXL1-001', 'TXL1-002', 'TXL1-003'];
   let surveyRaw = 0;
-  for (const q of project.quantities || []) {
+  const orphanRowIds = [];
+  const orphanCodes = new Set();
+  const invalidRowIds = [];
+  (project.quantities || []).forEach((q, qi) => {
+    const rowId = q.id ?? `qty_${qi}`;
+    if (!quotaByCode.has(q.quota)) {
+      orphanRowIds.push(rowId);
+      orphanCodes.add(q.quota);
+      return;
+    }
     const qty = num(q.qty);
-    if (!qty) continue;
+    if (typeof q.qty === 'number' && qty < 0) {
+      invalidRowIds.push(rowId);
+      return;
+    }
+    if (!qty) return; // 数量为 0 / 非数字 → 不参与计算（沿用 v1 静默跳过）
     const coef = q.coef == null || q.coef === '' ? 1 : num(q.coef);
+    if (typeof q.coef === 'number' && !(coef > 0)) {
+      invalidRowIds.push(rowId);
+      return;
+    }
+    if (!(coef > 0)) return; // 非数字系数 → 按 v1 视为 0，不参与计算
     const a = byQuota.get(q.quota) || { raw: 0, weighted: 0 };
     a.raw += qty;
     a.weighted += qty * coef;
@@ -160,13 +226,30 @@ export function calcProject(project, libs) {
     const vk = `${q.quota}|${q.variant || ''}`;
     byVariant.set(vk, (byVariant.get(vk) || 0) + qty);
     if (surveyCodes.includes(q.quota)) surveyRaw += qty;
-  }
+  });
   const surveyKm = surveyRaw / 10;
+  if (orphanRowIds.length) {
+    warnings.push({
+      code: 'orphanQty',
+      message: `${orphanRowIds.length} 行工程量引用了库中不存在的定额编号，将不参与计算：${[...orphanCodes].join('、')}`,
+      rowIds: orphanRowIds,
+    });
+  }
+  if (invalidRowIds.length) {
+    warnings.push({
+      code: 'invalidQty',
+      message: `${invalidRowIds.length} 行工程量数量/系数无效（数量<0 或系数<=0），将不参与计算`,
+      rowIds: invalidRowIds,
+    });
+  }
+  for (const code of duplicateCodes) {
+    warnings.push({ code: 'duplicateCode', message: `定额库中编号“${code}”重复，计算按首条匹配，请去重` });
+  }
 
   // ---- 2. 表三甲：工日 ----
   const table3A = [];
   let techSub = 0, laborSub = 0;
-  for (const quota of libs.quotas) {
+  for (const quota of quotas) {
     const agg = byQuota.get(quota.code);
     if (!agg || !agg.weighted) continue;
     const tech = r2(agg.weighted * num(quota.tech));
@@ -189,7 +272,7 @@ export function calcProject(project, libs) {
     }
     const rows = [];
     let total = 0;
-    for (const quota of libs.quotas) {
+    for (const quota of quotas) {
       const agg = byQuota.get(quota.code);
       if (!agg || !agg.weighted) continue;
       const ms = byQuotaMap.get(quota.code);
@@ -204,12 +287,14 @@ export function calcProject(project, libs) {
     }
     return { rows, total: r2(total) };
   }
-  const table3B = calcEquip(libs.quotaMachines, machinePrice);
-  const table3C = calcEquip(libs.quotaInstruments, instrumentPrice);
+  const table3B = calcEquip(L.quotaMachines || [], machinePrice);
+  const table3C = calcEquip(L.quotaInstruments || [], instrumentPrice);
 
   // ---- 4. 材料数量：定额主材关联 ----
   const matQty = new Map(); // key -> { auto, supply }
-  for (const rule of libs.rules) {
+  for (const rule of rules) {
+    // 孤儿定额的规则不参与计算（其工程量行已排除）。
+    if (!quotaByCode.has(rule.quota)) continue;
     let q = 0;
     if (rule.kind === '变体') {
       q = num(byVariant.get(`${rule.quota}|${rule.variant || ''}`));
@@ -218,8 +303,8 @@ export function calcProject(project, libs) {
       // 变体项目名称“架设吊线式墙壁光缆 6芯”同时匹配普通行与“…6芯 工日X0.5”行
       const prefix = rule.variant || '';
       let sum = 0;
-      for (const q of project.quantities || []) {
-        if (q.quota === rule.quota && num(q.qty) && (q.variant || '').startsWith(prefix)) sum += num(q.qty);
+      for (const qq of project.quantities || []) {
+        if (qq.quota === rule.quota && num(qq.qty) && (qq.variant || '').startsWith(prefix)) sum += num(qq.qty);
       }
       q = sum;
     } else if (rule.kind === '通用') {
@@ -268,7 +353,7 @@ export function calcProject(project, libs) {
   const table4B = buildMatTable('乙供');   // 表四乙
   const table4Equip = buildMatTable('设备'); // 表四甲（设备）
 
-  // ---- 5. 表二 ----
+  // ---- 5. 表二（折前）----
   const t2 = {};
   t2.techFee = r2(techDays * rate.techPrice);
   t2.laborFee = r2(laborDays * rate.laborPrice);
@@ -297,13 +382,19 @@ export function calcProject(project, libs) {
   t2.specialFee = 0;
   t2.protectFee = r2(t2.laborTotal * rate.protectRate);
   t2.earthFee = 0;
-  // 调遣费
+  // 调遣费（参数来自 libs.dispatch，缺失时用内置默认表）
+  const dsp = L.dispatch || DEFAULT_DISPATCH();
+  const priceTable = dsp.priceTable || DEFAULT_DISPATCH().priceTable;
+  const peopleEquip = dsp.peopleEquip || DEFAULT_DISPATCH().peopleEquip;
+  const peopleLine = dsp.peopleLine || DEFAULT_DISPATCH().peopleLine;
+  const extraPer200km = dsp.extraPer200km ?? 48;
+  const extraPeopleStep = dsp.extraPeopleStep ?? 3;
   const mileage = num(info.施工实际里程);
-  const dispatchUnit = techDays === 0 ? 0 : approxLookup(mileage, DISPATCH_PRICE) + (mileage > 4400 ? Math.ceil((mileage - 4400) / 200) * 48 : 0);
+  const dispatchUnit = techDays === 0 ? 0 : approxLookup(mileage, priceTable) + (mileage > 4400 ? Math.ceil((mileage - 4400) / 200) * extraPer200km : 0);
   const isEquipDispatch = info.施工调遣分类 === '施工队伍调遣人数(无线、电源、设备）';
   const dispatchPeople = techDays === 0 ? 0
-    : approxLookup(techDays, isEquipDispatch ? DISPATCH_PEOPLE_EQUIP : DISPATCH_PEOPLE_LINE)
-      + (isEquipDispatch ? Math.ceil(Math.max(0, techDays - 5000) / 1000) * 3 : Math.ceil(Math.max(0, techDays - 30000) / 5000) * 3);
+    : approxLookup(techDays, isEquipDispatch ? peopleEquip : peopleLine)
+      + (isEquipDispatch ? Math.ceil(Math.max(0, techDays - 5000) / 1000) * extraPeopleStep : Math.ceil(Math.max(0, techDays - 30000) / 5000) * extraPeopleStep);
   t2.dispatchUnit = dispatchUnit;
   t2.dispatchPeople = dispatchPeople;
   t2.dispatchFee = r2(dispatchUnit * dispatchPeople * 2);
@@ -322,47 +413,43 @@ export function calcProject(project, libs) {
   t2.indirectTotal = r2(t2.regFee + t2.mgmtFee);
   t2.profit = r2(t2.laborTotal * rate.profitRate);
   t2.exclTax = r2(t2.directTotal + t2.indirectTotal + t2.profit);
-  t2.outputTax = r2((t2.exclTax - t2.jiaMat) * rate.taxRate + table4A.totalExcl * jiaTax);
+  t2.outputTax = r2((t2.exclTax - t2.jiaMat) * outputTaxRate + table4A.totalExcl * jiaTax);
   t2.inclTax = r2(t2.exclTax + t2.outputTax);
+  const table2Before = t2;
 
-  // ---- 6. 表五 ----
-  const t5 = {};
-  t5.mgmt2 = r2(t2.exclTax * 0.02);
-  t5.mgmt2Vat = r2(t5.mgmt2 * 0.06);
-  t5.mgmt2Incl = r2(t5.mgmt2 + t5.mgmt2Vat);
-  // 勘察费（按勘察长度分段）
-  let surveyFee = 0;
-  if (surveyKm > 0) {
-    if (surveyKm <= 1) surveyFee = 2000 * 0.8;
-    else if (surveyKm <= 10) surveyFee = (2000 + (surveyKm - 1) * 1530) * 0.8;
-    else if (surveyKm <= 50) surveyFee = (15770 + (surveyKm - 10) * 1130) * 0.8;
-    else surveyFee = surveyKm * 1219.4 * 0.8;
-  }
-  t5.surveyKm = r2(surveyKm);
-  t5.surveyFee = r2(surveyFee);
-  t5.surveyVat = r2(t5.surveyFee * 0.06);
-  t5.designFee = r2(t2.exclTax * 0.045 * 1.1);
-  t5.designVat = r2(t5.designFee * 0.06);
-  t5.designTotal = r2(t5.surveyFee + t5.designFee);
-  t5.designTotalVat = r2(t5.surveyVat + t5.designVat);
-  t5.safetyFee = r2(t2.exclTax * 0.015);
-  t5.safetyVat = r2(t5.safetyFee * rate.taxRate);
-  t5.safetyIncl = r2(t5.safetyFee + t5.safetyVat);
-  t5.totalExcl = r2(t5.mgmt2 + t5.designTotal + t5.safetyFee);
-  t5.totalVat = r2(t5.mgmt2Vat + t5.designTotalVat + t5.safetyVat);
-  t5.totalIncl = r2(t5.totalExcl + t5.totalVat);
+  // ---- 6. 表二（折后）：逐项打折（§6.2），不再用 v1 快捷公式 ----
+  const noDiscountKeys = L.discountRule?.noDiscountKeys ?? DEFAULT_NO_DISCOUNT_KEYS;
+  const zeroAfterDiscountKeys = L.discountRule?.zeroAfterDiscountKeys ?? DEFAULT_ZERO_AFTER_DISCOUNT_KEYS;
+  const table2After = applyDiscount(table2Before, {
+    discountRate: discount,
+    noDiscountKeys,
+    zeroAfterDiscountKeys,
+    outputTaxRate,
+    jiaTax,
+  });
 
-  // ---- 7. 表一 ----
+  // ---- 7. 表五（可配置，§7.3）----
+  const table5 = calcTable5({
+    table2Before,
+    table2After,
+    surveyKm,
+    feesConfig: L.table5Fees,
+    overrides: project.table5Overrides,
+    safetyVatFallback,
+    warnings,
+  });
+
+  // ---- 8. 表一 ----
   const t1 = {};
-  t1.beforeDiscount = t2.exclTax;
-  t1.afterDiscount = r2((t2.exclTax - t2.mainMat - t2.regFee) * discount + t2.mainMat + t2.regFee);
-  t1.taxBefore = t2.outputTax;
-  t1.taxAfter = r2(t2.outputTax - table4A.totalVat);
+  t1.beforeDiscount = table2Before.exclTax;
+  t1.afterDiscount = table2After.exclTax;
+  t1.taxBefore = table2Before.outputTax;
+  t1.taxAfter = table2After.outputTax;
   t1.totalBefore = r2(t1.beforeDiscount + t1.taxBefore);
   t1.totalAfter = r2(t1.afterDiscount + t1.taxAfter);
-  t1.otherFee = t5.totalExcl;
-  t1.otherVat = t5.totalVat;
-  t1.otherIncl = t5.totalIncl;
+  t1.otherFee = table5.totalExcl;
+  t1.otherVat = table5.totalVat;
+  t1.otherIncl = table5.totalIncl;
   t1.sumExcl = r2(t1.afterDiscount + t1.otherFee);
   t1.sumVat = r2(t1.taxAfter + t1.otherVat);
   t1.sumIncl = r2(t1.sumExcl + t1.sumVat);
@@ -373,28 +460,112 @@ export function calcProject(project, libs) {
   t1.grandVat = r2(t1.sumVat + t1.equipVat);
   t1.grandIncl = r2(t1.sumIncl + t1.equipIncl);
 
-  // ---- 8. 汇总表 ----
+  // ---- 9. 汇总表（§7.2：建安费 = 表一折后建安费；其他费用 = 表五总计；无自购物资行）----
   const hz = {};
-  hz.construction = (t2.exclTax - t2.mainMat - t2.regFee) * discount + t2.regFee;
-  hz.constructionExcl = hz.construction;
-  hz.constructionVat = hz.construction * yiTax;
-  hz.constructionIncl = hz.construction + hz.constructionVat;
-  hz.other = t5.mgmt2 + t5.designTotal * 0.4 + t5.safetyFee;
-  hz.otherVat = hz.other * yiTax;
-  hz.otherIncl = hz.other + hz.otherVat;
-  hz.selfMat = t2.yiMat;
-  hz.selfMatVat = hz.selfMat * yiTax;
-  hz.selfMatIncl = hz.selfMat + hz.selfMatVat;
-  hz.totalExcl = hz.construction + hz.other + hz.selfMat;
-  hz.totalVat = hz.constructionVat + hz.otherVat + hz.selfMatVat;
-  hz.totalIncl = hz.totalExcl + hz.totalVat;
+  hz.constructionExcl = t1.afterDiscount;
+  hz.constructionVat = t1.taxAfter;
+  hz.constructionIncl = r2(hz.constructionExcl + hz.constructionVat);
+  hz.other = table5.totalExcl;
+  hz.otherVat = table5.totalVat;
+  hz.otherIncl = table5.totalIncl;
+  hz.totalExcl = r2(hz.constructionExcl + hz.other);
+  hz.totalVat = r2(hz.constructionVat + hz.otherVat);
+  hz.totalIncl = r2(hz.totalExcl + hz.totalVat);
 
   return {
     info, rate,
     techSub, laborSub, adjRate, techDays, laborDays,
     table3A, table3B, table3C,
     table4A, table4B, table4Equip,
-    table2: t2, table5: t5, table1: t1, summary: hz,
+    table2Before, table2After, table2: table2After,
+    table5, table1: t1, summary: hz,
+    warnings,
+    discount, discountRule: { discountRate: discount, noDiscountKeys, zeroAfterDiscountKeys },
     surveyKm, surveyRaw,
   };
+}
+
+/**
+ * 表五计算（§7.3）：按配置 table5Fees 逐项取费 + 工程级 table5Overrides 覆盖。
+ * - basis: preDiscountExclTax / afterDiscountExclTax / laborTotal(折前人工费) /
+ *   fixed / manual / surveyKm(勘察分段) / sum（= 子项和）。
+ * - enabled=false 的行不输出、不计入总计；productionPrepFee（总计之后单独行）不计入总计。
+ * - 单项 vatRate 缺失时：safetyFee 回落到 rates.vatRates.safetyVat，其余回落 0。
+ * - 扁平字段（mgmt2/surveyFee/designFee/…/totalExcl…）保留，供旧调用方（excel.cjs / Workbench）读取。
+ */
+function calcTable5({ table2Before, table2After, surveyKm, feesConfig, overrides, safetyVatFallback, warnings }) {
+  const feeList = (Array.isArray(feesConfig) && feesConfig.length ? feesConfig : DEFAULT_TABLE5_FEES());
+  const overridesByKey = new Map((overrides || []).map((o) => [o.key, o]));
+  const sorted = [...feeList].sort((a, b) => num(a.order) - num(b.order));
+  const rows = [];
+  for (const item of sorted) {
+    const ov = overridesByKey.get(item.key);
+    const enabled = ov?.enabled ?? item.enabled ?? true;
+    if (!enabled) continue;
+    rows.push({
+      key: item.key, name: item.name, basis: item.basis, rate: item.rate ?? null,
+      vatRate: item.vatRate ?? null, order: item.order ?? 0, note: item.note ?? '',
+      enabled: true, _item: item, _ov: ov,
+    });
+  }
+  const byKey = new Map(rows.map((r) => [r.key, r]));
+  const sumChildrenOf = (row) => {
+    if (row.key === 'designTotal' && !row._item.children) return ['surveyFee', 'designFee'];
+    return row._item.children || [];
+  };
+  // 除税价
+  for (const row of rows) {
+    const ov = row._ov;
+    if (ov?.amount != null) row.excl = r2(num(ov.amount));
+    else if (row.basis === 'preDiscountExclTax') row.excl = r2(table2Before.exclTax * num(row.rate));
+    else if (row.basis === 'afterDiscountExclTax') row.excl = r2(table2After.exclTax * num(row.rate));
+    else if (row.basis === 'laborTotal') row.excl = r2(table2Before.laborTotal * num(row.rate));
+    else if (row.basis === 'fixed') row.excl = r2(num(row._item.amount));
+    else if (row.basis === 'manual') row.excl = r2(num(row._item.amount));
+    else if (row.basis === 'surveyKm') row.excl = r2(surveyFeeFor(surveyKm));
+    else if (row.basis === 'sum') row.excl = null; // 子项求和，稍后填充
+    else {
+      warnings.push({ code: 'unknownTable5Basis', message: `表五费用项“${row.name}”的 basis“${row.basis}”未知，按 0 计算` });
+      row.excl = 0;
+    }
+  }
+  // sum 行：子项和（子项可能被禁用 → 按 0 计）。
+  for (const row of rows) {
+    if (row.basis === 'sum') {
+      row.excl = r2(sumChildrenOf(row).reduce((s, k) => s + num(byKey.get(k)?.excl), 0));
+    }
+  }
+  // 增值税 + 含税
+  for (const row of rows) {
+    const vr = row._item.vatRate ?? (row.key === 'safetyFee' ? safetyVatFallback : 0);
+    row.vatRate = vr;
+    row.vat = r2(row.excl * num(vr));
+    row.incl = r2(row.excl + row.vat);
+    row.amount = row.excl;
+  }
+  // 总计：排除 sum 行的子项（仅当该 sum 行启用时）与 productionPrepFee。
+  const sumChildren = new Set();
+  for (const row of rows) {
+    if (row.basis === 'sum') for (const k of sumChildrenOf(row)) sumChildren.add(k);
+  }
+  const totalRows = rows.filter((r) => !sumChildren.has(r.key) && r.key !== 'productionPrepFee');
+  const totalExcl = r2(totalRows.reduce((s, r) => s + r.excl, 0));
+  const totalVat = r2(totalRows.reduce((s, r) => s + r.vat, 0));
+  const totalIncl = r2(totalExcl + totalVat);
+
+  const get = (k) => byKey.get(k);
+  const f = (k, field) => num(get(k)?.[field]);
+  const pp = get('productionPrepFee');
+  const out = {
+    rows: rows.map(({ _item, _ov, ...rest }) => rest),
+    totalExcl, totalVat, totalIncl,
+    mgmt2: f('mgmt2', 'excl'), mgmt2Vat: f('mgmt2', 'vat'), mgmt2Incl: f('mgmt2', 'incl'),
+    surveyKm: r2(surveyKm),
+    surveyFee: f('surveyFee', 'excl'), surveyVat: f('surveyFee', 'vat'),
+    designFee: f('designFee', 'excl'), designVat: f('designFee', 'vat'),
+    designTotal: f('designTotal', 'excl'), designTotalVat: f('designTotal', 'vat'),
+    safetyFee: f('safetyFee', 'excl'), safetyVat: f('safetyFee', 'vat'), safetyIncl: f('safetyFee', 'incl'),
+    productionPrepFee: num(pp?.excl), productionPrepVat: num(pp?.vat), productionPrepIncl: num(pp?.incl),
+  };
+  return out;
 }

@@ -1,162 +1,168 @@
 import { useState } from 'react';
-import { PROJECT_TYPES, RATE_ITEMS, uid } from '../lib/store.js';
+import { LIBRARY_VIEWS, LIBRARY_VIEW_MAP } from '../lib/libraryDefs.js';
+import {
+  getViewRows, setViewRows, classifyImport, applyImport, countReferences, normalizeImportedRows,
+} from '../lib/libraryOps.js';
+import { DISCOUNT_LINE_DEFS } from '../engine/discount.mjs';
+import LibraryTable from '../components/LibraryTable.jsx';
+import ImportDiffPreview from '../components/ImportDiffPreview.jsx';
 
-/** 定制设置：材料库 / 定额库 / 费率 / 关联规则 / 配置导入导出 */
-export default function Settings({ db, updateDb }) {
-  const [tab, setTab] = useState('mat');
-  const [q, setQ] = useState('');
-  const [rateType, setRateType] = useState('通信线路工程');
+/**
+ * 定制设置（v2 增量 4）：当前配置方案的库管理壳——方案选择器 + 11 个库 Tab
+ * （复用 LibraryTable）+ 打折规则 Tab。配置方案的新建/复制/删除/导入导出在“配置方案”页。
+ */
+export default function Settings({ db, updateDb, pushUndo, notify }) {
+  const [tab, setTab] = useState('quotas');
+  const [importState, setImportState] = useState(null);
 
-  const patchLib = (fn) => updateDb((d) => { fn(d.libraries); });
+  const profile = db.configurationProfiles?.find((p) => p.id === db.settings?.activeProfileId)
+    ?? db.configurationProfiles?.[0] ?? null;
+  const view = LIBRARY_VIEW_MAP[tab] || null;
+  const rows = view && profile ? getViewRows(profile, view) : [];
 
-  const exportConfig = async () => {
-    const file = await window.api.saveFile({ defaultPath: '概预算配置备份.json', filters: [{ name: 'JSON', extensions: ['json'] }] });
+  const patchView = (v, fn, opts) => updateDb((d) => {
+    const i = d.configurationProfiles.findIndex((p) => p.id === profile?.id);
+    if (i < 0) return;
+    d.configurationProfiles[i] = setViewRows(d.configurationProfiles[i], v, fn(getViewRows(d.configurationProfiles[i], v)));
+  }, opts);
+
+  const handleEdit = (id, patch) => patchView(view, (rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  const handleAdd = () => patchView(view, (rs) => [view.newRow(), ...rs]);
+  const handleDelete = (ids) => {
+    pushUndo({ scope: 'table', profileId: profile.id, viewKey: view.key, rowsBefore: rows }, `删除 ${ids.length} 条${view.label}`);
+    patchView(view, (rs) => rs.filter((r) => !ids.includes(r.id)), { major: true });
+    notify(`已删除 ${ids.length} 条${view.label}，可撤销`, { undo: true });
+  };
+  const handleImport = async () => {
+    const file = await window.api.openFile([{ name: 'Excel', extensions: ['xlsx', 'xls'] }]);
     if (!file) return;
-    const { ipcRenderer } = { ipcRenderer: null };
-    const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = file.split('/').pop();
-    a.click();
-    URL.revokeObjectURL(a.href);
-    alert('配置已导出。注意：浏览器下载会落到下载文件夹，如需指定路径请在下载后移动。');
+    let res;
+    try {
+      res = await window.api.importLibrary({ filePath: file, kind: view.key });
+    } catch (e) {
+      alert(`导入解析失败：${e.message}`);
+      return;
+    }
+    if (!res.rows?.length && res.errors?.length) {
+      alert(`导入解析失败：\n${res.errors.join('\n')}`);
+      return;
+    }
+    const normalized = normalizeImportedRows(view, res.rows || []);
+    const classification = classifyImport(view, rows, normalized);
+    setImportState({ view, classification, parseErrors: res.errors || [], rowsBefore: rows });
+  };
+  const confirmImport = (decisions) => {
+    const { view: v, classification, rowsBefore } = importState;
+    const nextRows = applyImport(v, rowsBefore, classification, decisions);
+    pushUndo({ scope: 'table', profileId: profile.id, viewKey: v.key, rowsBefore }, `导入${v.label}（${decisions.mode === 'replace' ? '全部替换' : '合并'}）`);
+    patchView(v, () => nextRows, { major: decisions.mode === 'replace' });
+    setImportState(null);
+    notify(`导入完成：${v.label} 现 ${nextRows.length} 条`, { undo: false });
+  };
+  const handleExport = async (format, scope, exportRows) => {
+    const ext = format === 'json' ? 'json' : 'xlsx';
+    const file = await window.api.saveFile({
+      defaultPath: `${view.label}.${ext}`,
+      filters: [{ name: format === 'json' ? 'JSON' : 'Excel', extensions: [ext] }],
+    });
+    if (!file) return;
+    try {
+      await window.api.exportLibrary({ filePath: file, kind: view.key, rows: exportRows });
+      notify(`已导出：${file}`, { undo: false });
+    } catch (e) {
+      alert(`导出失败：${e.message}`);
+    }
   };
 
-  const rateCol = PROJECT_TYPES.indexOf(rateType);
-  const setRate = (hlookupN, value) => patchLib((L) => {
-    const row = L.rateGrid[3 + hlookupN - 2];
-    if (row) row[6 + rateCol] = value;
+  const patchDiscount = (fn) => updateDb((d) => {
+    const prof = d.configurationProfiles?.find((p) => p.id === profile?.id);
+    if (prof) { fn(prof.discountRule); prof.updatedAt = new Date().toISOString(); }
   });
+
+  if (!profile) return <div className="empty">暂无配置方案，请到“配置方案”页新建。</div>;
 
   return (
     <div>
-      <h2>定制设置</h2>
-      <p className="muted">这里改的是全局默认库：定额、材料、费率、关联规则。改完后所有工程重新计算；单个工程的特例（单价、调整量）请在工程内改，不会污染全局。</p>
+      <h2>定制设置 — 库管理</h2>
+      <p className="muted">这里改的是当前配置方案（{profile.name}）的库：改完后该方案下所有工程重新计算；单个工程的特例（单价、调整量）请在工程内改，不会污染方案。配置方案的新建/复制/删除/导入导出在“配置方案”页。</p>
+      <div className="toolbar">
+        <label>配置方案 <select className="input" value={profile.id} onChange={(e) => updateDb((d) => { d.settings.activeProfileId = e.target.value; })}>
+          {(db.configurationProfiles || []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select></label>
+      </div>
       <div className="tabs">
-        {['mat', 'quota', 'rate', 'rule', 'config'].map((t) => (
-          <button key={t} className={tab === t ? 'tab active' : 'tab'} onClick={() => setTab(t)}>
-            {t === 'mat' ? '材料库' : t === 'quota' ? '定额库' : t === 'rate' ? '费率' : t === 'rule' ? '关联规则' : '配置导入导出'}
-          </button>
+        {LIBRARY_VIEWS.map((v) => (
+          <button key={v.key} className={tab === v.key ? 'tab active' : 'tab'} onClick={() => setTab(v.key)}>{v.label}</button>
         ))}
+        <button className={tab === 'discount' ? 'tab active' : 'tab'} onClick={() => setTab('discount')}>打折规则</button>
       </div>
 
-      {tab === 'mat' && (
+      {view && (
+        <LibraryTable
+          view={view}
+          rows={rows}
+          referenceInfo={(targets) => countReferences(db, profile, view, targets)}
+          onEdit={handleEdit}
+          onAdd={handleAdd}
+          onDelete={handleDelete}
+          onImport={handleImport}
+          onExport={handleExport}
+        />
+      )}
+
+      {tab === 'discount' && (
         <div>
-          <div className="toolbar">
-            <input className="input" style={{ width: 300 }} placeholder="搜索材料名称 / 规格…" value={q} onChange={(e) => setQ(e.target.value)} />
-            <button className="btn primary" onClick={() => patchLib((L) => { L.materials.unshift({ id: uid(), name: '新材料', spec: '', unit: '', priceExcl: 0, supply: '甲供', remark: '' }); })}>＋ 新增材料</button>
+          <p className="muted">打折规则随配置方案保存与导出（§6）。折扣率 1 = 不打折；勾选的费用项不打折（折后 = 折前）；勾选“折后=0”的费用项在打折时折后为 0（折扣率 = 1 时不生效）；同一项不可同时勾选两列。</p>
+          <div className="row">
+            <label>折扣率 <input className="input" type="number" step="any" style={{ width: 120 }} value={profile.discountRule?.discountRate ?? 1} onChange={(e) => patchDiscount((r) => { r.discountRate = Number(e.target.value); })} /></label>
+            <span className="muted">当前：{((profile.discountRule?.discountRate ?? 1) * 100).toFixed(1)}%</span>
           </div>
-          <table className="table"><thead><tr><th>名称</th><th>规格</th><th>单位</th><th>除税单价</th><th>供货</th><th>备注</th><th></th></tr></thead>
-            <tbody>{db.libraries.materials.filter((m) => !q || m.name.includes(q) || m.spec.includes(q)).slice(0, 200).map((m) => (
-              <tr key={m.id}>
-                <td><input className="cell-input" value={m.name} onChange={(e) => patchLib((L) => { L.materials.find((x) => x.id === m.id).name = e.target.value; })} /></td>
-                <td><input className="cell-input" value={m.spec} onChange={(e) => patchLib((L) => { L.materials.find((x) => x.id === m.id).spec = e.target.value; })} /></td>
-                <td><input className="cell-input" style={{ width: 60 }} value={m.unit} onChange={(e) => patchLib((L) => { L.materials.find((x) => x.id === m.id).unit = e.target.value; })} /></td>
-                <td><input className="cell-input" type="number" value={m.priceExcl} onChange={(e) => patchLib((L) => { L.materials.find((x) => x.id === m.id).priceExcl = Number(e.target.value); })} /></td>
-                <td><select className="input" value={m.supply} onChange={(e) => patchLib((L) => { L.materials.find((x) => x.id === m.id).supply = e.target.value; })}><option>甲供</option><option>乙供</option><option>设备</option></select></td>
-                <td><input className="cell-input" value={m.remark} onChange={(e) => patchLib((L) => { L.materials.find((x) => x.id === m.id).remark = e.target.value; })} /></td>
-                <td><button className="btn sm danger" onClick={() => patchLib((L) => { L.materials = L.materials.filter((x) => x.id !== m.id); })}>删除</button></td>
-              </tr>
-            ))}</tbody></table>
+          <table className="table"><thead><tr><th>不打折费用项</th><th>折后=0</th><th>说明</th></tr></thead>
+            <tbody>{DISCOUNT_LINE_DEFS.filter((d) => d.kind === 'leaf').map((d) => {
+              const keys = profile.discountRule?.noDiscountKeys || [];
+              const checked = keys.includes(d.key);
+              const zeroKeys = profile.discountRule?.zeroAfterDiscountKeys || [];
+              const zeroChecked = zeroKeys.includes(d.key);
+              return (
+                <tr key={d.key}><td>
+                  <label><input type="checkbox" checked={checked} onChange={(e) => patchDiscount((r) => {
+                    const set = new Set(r.noDiscountKeys || []);
+                    if (e.target.checked) {
+                      set.add(d.key);
+                      const z = new Set(r.zeroAfterDiscountKeys || []);
+                      z.delete(d.key);
+                      r.zeroAfterDiscountKeys = [...z];
+                    } else set.delete(d.key);
+                    r.noDiscountKeys = [...set];
+                  })} /> {d.label}</label>
+                </td><td>
+                  <label><input type="checkbox" checked={zeroChecked} onChange={(e) => patchDiscount((r) => {
+                    const z = new Set(r.zeroAfterDiscountKeys || []);
+                    if (e.target.checked) {
+                      z.add(d.key);
+                      const set = new Set(r.noDiscountKeys || []);
+                      set.delete(d.key);
+                      r.noDiscountKeys = [...set];
+                    } else z.delete(d.key);
+                    r.zeroAfterDiscountKeys = [...z];
+                  })} /></label>
+                </td><td className="muted">{d.methodBefore}</td></tr>
+              );
+            })}</tbody></table>
         </div>
       )}
 
-      {tab === 'quota' && (
-        <div>
-          <div className="toolbar">
-            <input className="input" style={{ width: 300 }} placeholder="搜索定额编号 / 名称…" value={q} onChange={(e) => setQ(e.target.value)} />
-            <button className="btn primary" onClick={() => patchLib((L) => { L.quotas.unshift({ code: 'NEW-' + uid().slice(0, 4), name: '新定额', unit: '', tech: 0, labor: 0, coef: 1, book: '', alias: '' }); })}>＋ 新增定额</button>
-            <button className="btn" onClick={async () => {
-              const file = await window.api.openFile([{ name: 'Excel', extensions: ['xlsx', 'xls'] }]);
-              if (!file) return;
-              const imported = await window.api.importQuotas(file);
-              if (!imported.length) return alert('未识别到定额行。表头应为：定额编号 / 定额名称 / 单位 / 技工 / 普工 / 系数 / 分册名称（或直接用母版定额表）。');
-              const mode = confirm(`读到 ${imported.length} 条定额。\n点“确定”= 合并（同编号覆盖，不同编号追加）；\n点“取消”= 全部替换当前定额库。`);
-              patchLib((L) => {
-                if (mode) {
-                  const byCode = new Map(L.quotas.map((x) => [x.code, x]));
-                  for (const nq of imported) byCode.set(nq.code, nq);
-                  L.quotas = [...byCode.values()];
-                } else L.quotas = imported;
-              });
-              alert('定额库导入完成。');
-            }}>从 Excel 导入定额库</button>
-            <button className="btn" onClick={async () => {
-              const file = await window.api.saveFile({ defaultPath: '定额库.xlsx', filters: [{ name: 'Excel', extensions: ['xlsx'] }] });
-              if (file) { await window.api.exportQuotas({ filePath: file, quotas: db.libraries.quotas }); alert('定额库已导出：' + file); }
-            }}>导出定额库到 Excel</button>
-          </div>
-          <p className="muted">定额库由你自己维护：在 Excel 里改完再导入（合并/替换），或直接在下方表格里改。当前 {db.libraries.quotas.length} 条。</p>
-          <table className="table"><thead><tr><th>定额编号</th><th>定额名称</th><th>单位</th><th>技工/单位</th><th>普工/单位</th><th>系数</th><th>分册</th><th></th></tr></thead>
-            <tbody>{db.libraries.quotas.filter((x) => !q || x.code.includes(q) || x.name.includes(q)).slice(0, 200).map((x, i) => (
-              <tr key={x.code + i}>
-                <td><input className="cell-input" value={x.code} onChange={(e) => patchLib((L) => { L.quotas.find((y) => y.code === x.code).code = e.target.value; })} /></td>
-                <td><input className="cell-input" value={x.name} onChange={(e) => patchLib((L) => { L.quotas.find((y) => y.code === x.code).name = e.target.value; })} /></td>
-                <td><input className="cell-input" style={{ width: 60 }} value={x.unit} onChange={(e) => patchLib((L) => { L.quotas.find((y) => y.code === x.code).unit = e.target.value; })} /></td>
-                <td><input className="cell-input" type="number" step="0.01" value={x.tech} onChange={(e) => patchLib((L) => { L.quotas.find((y) => y.code === x.code).tech = Number(e.target.value); })} /></td>
-                <td><input className="cell-input" type="number" step="0.01" value={x.labor} onChange={(e) => patchLib((L) => { L.quotas.find((y) => y.code === x.code).labor = Number(e.target.value); })} /></td>
-                <td><input className="cell-input" type="number" step="0.1" style={{ width: 60 }} value={x.coef} onChange={(e) => patchLib((L) => { L.quotas.find((y) => y.code === x.code).coef = Number(e.target.value); })} /></td>
-                <td>{x.book}</td>
-                <td><button className="btn sm danger" onClick={() => patchLib((L) => { L.quotas = L.quotas.filter((y) => y.code !== x.code); })}>删除</button></td>
-              </tr>
-            ))}</tbody></table>
-        </div>
-      )}
-
-      {tab === 'rate' && (
-        <div>
-          <div className="toolbar">
-            <label>工程类型 <select className="input" value={rateType} onChange={(e) => setRateType(e.target.value)}>
-              {PROJECT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select></label>
-            <span className="muted">费率按工程类型取；改这里即改该类型下所有工程的取费。增值税率 = 乙供增值税（在工程信息中改）；冬雨季按地区类别查冬雨季表。</span>
-          </div>
-          <table className="table"><thead><tr><th>费率项目</th><th>数值</th><th>说明</th></tr></thead>
-            <tbody>{RATE_ITEMS.filter((it) => it.key !== 'taxRate').map((it) => {
-              const v = db.libraries.rateGrid[3 + it.n - 2]?.[6 + rateCol];
-              const isMoney = it.key === 'techPrice' || it.key === 'laborPrice';
-              return <tr key={it.key}><td>{it.name}</td>
-                <td><input className="cell-input" type="number" step="any" value={typeof v === 'number' ? v : 0} onChange={(e) => setRate(it.n, Number(e.target.value))} /></td>
-                <td>{isMoney ? '元/工日' : '费率（小数，如 0.003 = 0.3%）'}</td></tr>;
-            })}
-            <tr><td>冬雨季施工增加费（Ⅰ类地区）</td><td><input className="cell-input" type="number" step="any" value={db.libraries.winterTable['Ⅰ类地区']} onChange={(e) => patchLib((L) => { L.winterTable['Ⅰ类地区'] = Number(e.target.value); })} /></td><td>费率</td></tr>
-            <tr><td>冬雨季施工增加费（Ⅱ类地区）</td><td><input className="cell-input" type="number" step="any" value={db.libraries.winterTable['Ⅱ类地区']} onChange={(e) => patchLib((L) => { L.winterTable['Ⅱ类地区'] = Number(e.target.value); })} /></td><td>费率</td></tr>
-            <tr><td>冬雨季施工增加费（Ⅲ类地区）</td><td><input className="cell-input" type="number" step="any" value={db.libraries.winterTable['Ⅲ类地区']} onChange={(e) => patchLib((L) => { L.winterTable['Ⅲ类地区'] = Number(e.target.value); })} /></td><td>费率</td></tr>
-            </tbody></table>
-        </div>
-      )}
-
-      {tab === 'rule' && (
-        <div>
-          <div className="toolbar">
-            <input className="input" style={{ width: 300 }} placeholder="搜索定额编号 / 材料 / 变体…" value={q} onChange={(e) => setQ(e.target.value)} />
-            <button className="btn primary" onClick={() => patchLib((L) => { L.rules.unshift({ id: uid(), quota: '', material: '', spec: '', unit: '', consumption: 0, supply: '甲供', kind: '变体', variant: '', remark: '' }); })}>＋ 新增规则</button>
-          </div>
-          <p className="muted">变体：变体项目名称精确匹配；变体*：前缀匹配（同时匹配普通行与“工日X0.5”行）；通用：按定额编号汇总全部工程量；备选：默认不计，工程内勾选启用。</p>
-          <table className="table"><thead><tr><th>定额编号</th><th>材料</th><th>规格</th><th>单位</th><th>单位消耗量</th><th>供货</th><th>类型</th><th>变体项目名称</th><th></th></tr></thead>
-            <tbody>{db.libraries.rules.filter((r) => !q || r.quota.includes(q) || r.material.includes(q) || (r.variant || '').includes(q)).map((r) => (
-              <tr key={r.id}>
-                <td><input className="cell-input" value={r.quota} onChange={(e) => patchLib((L) => { L.rules.find((x) => x.id === r.id).quota = e.target.value; })} /></td>
-                <td><input className="cell-input" value={r.material} onChange={(e) => patchLib((L) => { L.rules.find((x) => x.id === r.id).material = e.target.value; })} /></td>
-                <td><input className="cell-input" value={r.spec} onChange={(e) => patchLib((L) => { L.rules.find((x) => x.id === r.id).spec = e.target.value; })} /></td>
-                <td><input className="cell-input" style={{ width: 60 }} value={r.unit} onChange={(e) => patchLib((L) => { L.rules.find((x) => x.id === r.id).unit = e.target.value; })} /></td>
-                <td><input className="cell-input" type="number" step="any" value={r.consumption} onChange={(e) => patchLib((L) => { L.rules.find((x) => x.id === r.id).consumption = Number(e.target.value); })} /></td>
-                <td><select className="input" value={r.supply} onChange={(e) => patchLib((L) => { L.rules.find((x) => x.id === r.id).supply = e.target.value; })}><option>甲供</option><option>乙供</option><option>设备</option></select></td>
-                <td><select className="input" value={r.kind} onChange={(e) => patchLib((L) => { L.rules.find((x) => x.id === r.id).kind = e.target.value; })}><option>变体</option><option>变体*</option><option>通用</option><option>备选</option></select></td>
-                <td><input className="cell-input" style={{ width: 200 }} value={r.variant} onChange={(e) => patchLib((L) => { L.rules.find((x) => x.id === r.id).variant = e.target.value; })} /></td>
-                <td><button className="btn sm danger" onClick={() => patchLib((L) => { L.rules = L.rules.filter((x) => x.id !== r.id); })}>删除</button></td>
-              </tr>
-            ))}</tbody></table>
-        </div>
-      )}
-
-      {tab === 'config' && (
-        <div>
-          <p>全部数据（工程 + 定额库 + 材料库 + 费率 + 关联规则）存在本地一个 JSON 文件中，软件每次修改自动保存并保留最近 5 份备份。</p>
-          <p className="muted">备份位置：~/Library/Application Support/通信概预算/budget-data.json（及 budget-data.backup-*.json）。换电脑时把该文件拷过去即可；也可以用下方导出做手动备份。</p>
-          <button className="btn primary" onClick={exportConfig}>导出全部配置（JSON）</button>
-          <p style={{ marginTop: 16 }} className="muted">导入配置：把备份的 JSON 文件内容恢复到该位置后重启软件即可（后续版本会加一键导入）。</p>
-        </div>
+      {importState && (
+        <ImportDiffPreview
+          open
+          viewLabel={importState.view.label}
+          profileName={profile.name}
+          classification={importState.classification}
+          parseErrors={importState.parseErrors}
+          allowReplace={importState.view.key !== 'rates'}
+          onCancel={() => setImportState(null)}
+          onConfirm={confirmImport}
+        />
       )}
     </div>
   );

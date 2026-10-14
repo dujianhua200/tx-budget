@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { calcFor, money, newProject } from '../lib/store.js';
+import { calcFor, money, newProject, getLibraries, uid } from '../lib/store.js';
+import ConfirmDialog from '../components/ConfirmDialog.jsx';
 
-/** 批量生成：批量新建 / 批量导入 / 批量导出 / 批量改价 / 批量改费率 */
-export default function Batch({ db, updateDb, openProject }) {
+/** 批量生成：批量新建 / 批量导入 / 批量导出 / 批量改价 / 批量改费率 / 批量删除工程 */
+export default function Batch({ db, updateDb, openProject, pushUndo, notify }) {
   const [names, setNames] = useState('');
   const [templateId, setTemplateId] = useState('');
   const [multiplier, setMultiplier] = useState(1);
@@ -11,8 +12,11 @@ export default function Batch({ db, updateDb, openProject }) {
   const [newPrice, setNewPrice] = useState('');
   const [discount, setDiscount] = useState(1);
   const [msg, setMsg] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(null); // {ids, names}
 
   const toggle = (id) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  // 增量 1 最小接线：库从当前激活方案取（getLibraries），不再读顶层 db.libraries。
+  const libs = getLibraries(db);
 
   const batchCreate = () => {
     const list = names.split('\n').map((s) => s.trim()).filter(Boolean);
@@ -36,9 +40,9 @@ export default function Batch({ db, updateDb, openProject }) {
     const created = projects.map((p) => {
       const np = newProject(db, p.name);
       np.quantities = p.quantities.map((q) => {
-        const short = db.libraries.shortlist.find((s) => s.code === q.quota && s.name === q.variant);
-        const quota = db.libraries.quotas.find((x) => x.code === q.quota);
-        return { ...q, unit: short?.unit ?? quota?.unit ?? '', coef: q.coef || short?.coef || 1 };
+        const short = libs.shortlist.find((s) => s.code === q.quota && s.name === q.variant);
+        const quota = libs.quotas.find((x) => x.code === q.quota);
+        return { ...q, id: uid(), unit: short?.unit ?? quota?.unit ?? '', coef: q.coef || short?.coef || 1 };
       });
       return np;
     });
@@ -54,7 +58,7 @@ export default function Batch({ db, updateDb, openProject }) {
     for (const p of db.projects.filter((x) => selected.has(x.id))) {
       const result = calcFor(db, p);
       const safe = p.name.replace(/[\\/:*?"<>|]/g, '_');
-      await window.api.exportProject({ filePath: `${dir}/${safe}_概预算.xlsx`, project: p, result });
+      await window.api.exportBudgetBook({ filePath: `${dir}/${safe}_概预算.xlsx`, project: p, result, profileId: p.profileId });
       ok++;
     }
     setMsg(`已批量导出 ${ok} 个工程到 ${dir}。`);
@@ -75,10 +79,36 @@ export default function Batch({ db, updateDb, openProject }) {
 
   const batchDiscount = () => {
     if (!selected.size) return alert('请先勾选要改费率的工程');
-    updateDb((d) => {
-      for (const p of d.projects.filter((x) => selected.has(x.id))) p.info.施工折扣 = Number(discount);
+    const d = Number(discount);
+    // §2.3：改折扣写入 rateOverrides 并同步 info.施工折扣，两处不许不一致。
+    updateDb((dbDraft) => {
+      for (const p of dbDraft.projects.filter((x) => selected.has(x.id))) {
+        p.info.施工折扣 = d;
+        p.rateOverrides = { ...(p.rateOverrides || {}), discount: d };
+      }
     });
     setMsg(`已将 ${selected.size} 个工程的施工折扣改为 ${discount}。`);
+  };
+
+  /** 批量删除工程（B2）：确认框 + 撤销快照 + major 备份，与 Projects 同款。 */
+  const askDeleteSelected = () => {
+    const targets = db.projects.filter((p) => selected.has(p.id));
+    if (!targets.length) return alert('请先勾选要删除的工程');
+    setConfirmDelete({ ids: targets.map((p) => p.id), names: targets.map((p) => p.name) });
+  };
+  const doDeleteSelected = () => {
+    if (!confirmDelete) return;
+    const { ids, names } = confirmDelete;
+    if (pushUndo) pushUndo(
+      { scope: 'projects', projectsBefore: JSON.parse(JSON.stringify(db.projects)) },
+      `删除 ${ids.length} 个工程`,
+    );
+    updateDb((d) => { d.projects = d.projects.filter((p) => !ids.includes(p.id)); }, { major: true });
+    setSelected(new Set());
+    setConfirmDelete(null);
+    setMsg(`已删除 ${ids.length} 个工程。`);
+    if (notify) notify(`已删除 ${ids.length} 个工程，可撤销`, { undo: true });
+    return names;
   };
 
   return (
@@ -108,7 +138,7 @@ export default function Batch({ db, updateDb, openProject }) {
           <div className="row">
             <select className="input" value={matKey} onChange={(e) => setMatKey(e.target.value)}>
               <option value="">选择材料</option>
-              {db.libraries.materials.map((m) => <option key={m.id} value={`${m.name}|${m.spec}`}>{m.name} {m.spec}（{m.supply}，现价 {m.priceExcl}）</option>)}
+              {libs.materials.map((m) => <option key={m.id} value={`${m.name}|${m.spec}`}>{m.name} {m.spec}（{m.supply}，现价 {m.priceExcl}）</option>)}
             </select>
             <input className="input" style={{ width: 110 }} type="number" placeholder="新除税单价" value={newPrice} onChange={(e) => setNewPrice(e.target.value)} />
             <button className="btn" onClick={batchPrice}>批量改价</button>
@@ -124,6 +154,11 @@ export default function Batch({ db, updateDb, openProject }) {
           <p className="muted">勾选下方工程，一键导出每个工程的完整预算书 Excel（表一~表五 + 明细）。</p>
           <button className="btn primary" onClick={batchExport}>批量导出选中工程</button>
         </section>
+        <section className="card">
+          <h3>⑤ 批量删除工程</h3>
+          <p className="muted">勾选下方工程，删除前弹确认框并备份，删除后 5 秒内可撤销。</p>
+          <button className="btn danger" disabled={!selected.size} onClick={askDeleteSelected}>批量删除选中工程</button>
+        </section>
       </div>
       {msg && <div className="notice">{msg}</div>}
       <table className="table">
@@ -137,6 +172,15 @@ export default function Batch({ db, updateDb, openProject }) {
         })}
         {!db.projects.length && <tr><td colSpan={5} className="empty">暂无工程。</td></tr>}
         </tbody></table>
+      {confirmDelete && (
+        <ConfirmDialog open
+          title={`删除选中的 ${confirmDelete.ids.length} 个工程？`}
+          impact={`将删除 ${confirmDelete.ids.length} 个工程（含工程量、材料调整与费率覆盖），删除前已备份，可撤销。`}
+          samples={confirmDelete.names}
+          confirmLabel="确认删除"
+          onConfirm={doDeleteSelected}
+          onCancel={() => setConfirmDelete(null)} />
+      )}
     </div>
   );
 }

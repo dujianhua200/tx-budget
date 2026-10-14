@@ -1,0 +1,66 @@
+{
+ "command": "python3 scripts/rebuild_crosscheck_fixture.py",
+ "generatedBy": "scripts/rebuild_crosscheck_fixture.py",
+ "info": {
+  "乙供增值税": 0.09,
+  "冬雨季施工费": "Ⅲ类地区",
+  "工程类型": "通信线路工程",
+  "施工实际里程": 36,
+  "施工折扣": 1,
+  "甲供增值税": 0.13
+ },
+ "libreOfficeVersion": "LibreOffice 24.2.7.2 420(Build:2)",
+ "note": "数值全部来自 LibreOffice 公式重算，未手编、未四舍五入。表二!I8 在费率绕行后由 LO 真算出（原 #N/A），测试内 loFixed 换算值应与之在容差内一致。",
+ "scenario": [
+  {
+   "code": "TXL1-002",
+   "masterRow": 7,
+   "qty": 10,
+   "variant": "光(电)缆工程施工测量 架空"
+  },
+  {
+   "code": "TXL3-187",
+   "masterRow": 16,
+   "qty": 2,
+   "variant": "挂钩法架设架空光缆 平原 6芯"
+  },
+  {
+   "code": "TXL3-187",
+   "masterRow": 18,
+   "qty": 3,
+   "variant": "挂钩法架设架空光缆 平原 24芯"
+  },
+  {
+   "code": "TXL4-053",
+   "masterRow": 36,
+   "qty": 4,
+   "variant": "架设吊线式墙壁光缆 6芯(工日X0.5)"
+  },
+  {
+   "code": "TXL7-023",
+   "masterRow": 90,
+   "qty": 5,
+   "variant": "安装光分纤箱、光分路箱 架空式 二槽位（SMC）"
+  },
+  {
+   "code": "TXL7-023",
+   "masterRow": 134,
+   "qty": 1,
+   "variant": "安装光分纤箱、光分路箱 架空式 48芯"
+  },
+  {
+   "code": "TXL7-043",
+   "masterRow": 109,
+   "qty": 2,
+   "variant": "安装落地式光缆交接箱 288芯"
+  }
+ ],
+ "source": "/home/hatch/workspace/your_files/预算模板/通信概预算自动化母版_v3.0.xlsx",
+ "sourceSha256": "ff5ed39fc01acad514bc46d600aa87fb8d3a320cdaae4444ac8f0675874486d4",
+ "workarounds": [
+  "费率表 G17:K17 冬雨季嵌套 TEXT(HLOOKUP) 在 LO 下算出 #N/A，按母版本意（Ⅲ类地区 -> 0.018）写成 plain 数 0.018；值仍由 LO 其余公式算出，非手编。",
+  "母版表五 H11=(J1365+J1366+J1367)/10，空量行 J 为 \"\" 空串，LO 下 \"\"+10 会 #VALUE!；把另两行定额表 J1365/J1367 置 0（母版 bug 绕行）。",
+  "表二!I8 在 LO 下原为 #N/A，费率绕行（0.018 plain 数）后由 LO 真算出 156.96；tests/crosscheck.test.mjs 用 loFixed 按母版本意换算，两者应在容差内一致。",
+  "表二!I14（调遣费）测试沿用硬编码 1410（母版调遣单价 141 × 10 人），未从 LO 取用，不纳入提取键。"
+ ]
+}

@@ -35,3 +35,24 @@ a { color: #165dff; text-decoration: none; }
 .card h3 { margin: 0 0 10px; font-size: 14px; }
 .row { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
 .notice { background: #e8f3ff; border: 1px solid #9cc3f5; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; }
+.btn.danger-btn { background: #e5484d; border-color: #e5484d; color: #fff; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal { background: #fff; border-radius: 8px; padding: 20px; min-width: 420px; max-width: 90vw; max-height: 85vh; overflow: auto; box-shadow: 0 8px 30px rgba(0,0,0,0.25); }
+.modal.wide { min-width: 720px; }
+.modal h3 { margin: 0 0 12px; font-size: 15px; }
+.modal h4 { margin: 14px 0 6px; font-size: 13px; }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #1f2a44; color: #fff; border-radius: 6px; padding: 10px 14px; display: flex; gap: 10px; align-items: center; z-index: 200; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+.pagination { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin: 8px 0 16px; font-size: 12px; color: #444; }
+.diff-errors { background: #fff1f1; border: 1px solid #f0b4b4; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; font-size: 12px; }
+.diff-warn { background: #fff7e6; border: 1px solid #f5d48a; border-radius: 6px; padding: 10px 12px; font-size: 12px; }
+.diff-check { display: inline-block; margin-right: 14px; font-size: 12px; }
+/* ---- 工作台（v2 增量 5，§9 三区 + 顶栏，不分页签） ---- */
+.workbench { display: grid; grid-template-columns: 300px 1fr 420px; gap: 12px; align-items: start; }
+.wb-left { background: #fff; border: 1px solid #e4e7ec; border-radius: 8px; padding: 12px; max-height: calc(100vh - 150px); overflow: auto; }
+.wb-left.collapsed { padding: 8px; max-height: none; overflow: visible; }
+.wb-mid { background: #fff; border: 1px solid #e4e7ec; border-radius: 8px; padding: 12px; min-width: 0; overflow: auto; }
+.wb-right { background: #fff; border: 1px solid #e4e7ec; border-radius: 8px; padding: 12px; min-width: 0; }
+.wb-form { display: flex; flex-direction: column; gap: 8px; }
+.wb-warn { background: #fff7e6; border: 1px solid #f5d48a; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; font-size: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.wb-row-hl td { background: #fff3c4 !important; }
+.wb-collapse { margin-bottom: 8px; }
