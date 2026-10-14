@@ -7,7 +7,7 @@ import ConfirmDialog from '../components/ConfirmDialog.jsx';
  * / 导出方案文件 / 导入方案文件 / 设为新建默认 / 整库备份。
  * 导入/导出全部走主进程 fs 写真实路径（B1），不走浏览器下载。
  */
-export default function Profiles({ db, updateDb, pushUndo, notify }) {
+export default function Profiles({ db, updateDb, pushUndo, notify, setNav }) {
   const [newName, setNewName] = useState('');
   const [templateId, setTemplateId] = useState('');
   const [renameId, setRenameId] = useState(null);
@@ -17,6 +17,7 @@ export default function Profiles({ db, updateDb, pushUndo, notify }) {
 
   const profiles = db.configurationProfiles || [];
   const activeId = db.settings?.activeProfileId;
+  const editingId = db.settings?.editingProfileId ?? activeId;
   const projectsOf = (pid) => (db.projects || []).filter((p) => p.profileId === pid);
 
   const handleCreate = () => {
@@ -144,9 +145,15 @@ export default function Profiles({ db, updateDb, pushUndo, notify }) {
             </td>
             <td>{p.source}</td>
             <td>{projectsOf(p.id).length}</td>
-            <td>{activeId === p.id ? '新建默认' : ''}</td>
+            <td>{[activeId === p.id ? '新建默认' : '', editingId === p.id ? '正在编辑' : ''].filter(Boolean).join(' · ')}</td>
             <td>
-              <button className="btn sm" disabled={activeId === p.id} onClick={() => updateDb((d) => { d.settings.activeProfileId = p.id; })}>设为新建默认</button>
+              <button className="btn sm primary" onClick={() => {
+                // v3.0 §13.8：编辑内容 = 置 editingProfileId 并跳基础库页；不碰 activeProfileId。
+                updateDb((d) => { d.settings.editingProfileId = p.id; });
+                if (setNav) setNav({ section: 'libraries', tab: 'quotas' });
+                if (notify) notify(`正在编辑方案“${p.name}”`, { undo: false });
+              }}>编辑内容</button>
+              <button className="btn sm" disabled={activeId === p.id} onClick={() => updateDb((d) => { d.settings.activeProfileId = p.id; })}>设为默认</button>
               <button className="btn sm" onClick={() => handleDuplicate(p)}>复制</button>
               <button className="btn sm" onClick={() => handleExport(p)}>导出</button>
               <button className="btn sm danger" onClick={() => askDelete(p)}>删除</button>

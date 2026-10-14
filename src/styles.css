@@ -46,6 +46,55 @@ a { color: #165dff; text-decoration: none; }
 .diff-errors { background: #fff1f1; border: 1px solid #f0b4b4; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; font-size: 12px; }
 .diff-warn { background: #fff7e6; border: 1px solid #f5d48a; border-radius: 6px; padding: 10px 12px; font-size: 12px; }
 .diff-check { display: inline-block; margin-right: 14px; font-size: 12px; }
+/* ---- v3.0 宽松布局：行高加大，关键数字加大字 ---- */
+.table th, .table td { padding: 10px 12px; line-height: 1.6; }
+.table { font-size: 14px; }
+/* ---- v3.0 导航：顶栏 + 侧边栏 + 底栏 ---- */
+.app-body { display: flex; flex: 1; min-height: 0; }
+.topbar-tools { display: flex; gap: 6px; }
+.topbtn { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.25); color: #fff; }
+.topbtn:hover { color: #fff; border-color: #fff; }
+.topbtn.primary { background: #165dff; border-color: #165dff; }
+.topbar-current { color: #e8ecf4; font-size: 13px; }
+.topbar-editing { color: #ffd58a; font-size: 12px; }
+.topbar-save { color: #b9f5c8; font-size: 12px; margin-left: auto; }
+.sidebar { width: 210px; flex-shrink: 0; background: #fff; border-right: 1px solid #e4e7ec; overflow-y: auto; padding: 12px 8px; }
+.sidebar.collapsed { width: 44px; padding: 12px 6px; }
+.sidebar-head { display: flex; justify-content: space-between; align-items: center; padding: 0 8px 8px; font-weight: 700; }
+.sidebar-group { margin-bottom: 14px; }
+.side-label { font-size: 12px; color: #888; padding: 4px 8px; font-weight: 600; }
+.side-sublabel { font-size: 12px; color: #888; padding: 4px 8px 4px 16px; }
+.side-note { font-size: 11px; color: #888; padding: 4px 8px 4px 16px; }
+.side-item { display: block; width: 100%; text-align: left; background: none; border: none; padding: 8px 10px; cursor: pointer; font-size: 14px; border-radius: 6px; color: #222; }
+.side-item:hover { background: #eef2ff; }
+.side-item.active { background: #165dff; color: #fff; }
+.side-item.indent { padding-left: 22px; }
+.side-item:disabled { color: #aaa; cursor: not-allowed; background: none; }
+.statusbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 6px 16px; background: #1f2a44; color: #c8d0e0; font-size: 12px; flex-shrink: 0; }
+.status-hint { color: #ffd58a; }
+.status-right { white-space: nowrap; }
+/* ---- v3.0 取费左树 + 右表 ---- */
+.fee-tree-wrap { display: flex; gap: 16px; align-items: flex-start; }
+.fee-tree { width: 260px; flex-shrink: 0; background: #fff; border: 1px solid #e4e7ec; border-radius: 8px; padding: 10px 6px; max-height: calc(100vh - 220px); overflow: auto; }
+.fee-tree-node { display: block; width: 100%; text-align: left; background: none; border: none; padding: 7px 8px; cursor: pointer; font-size: 13px; border-radius: 4px; }
+.fee-tree-node:hover { background: #eef2ff; }
+.fee-tree-node.active { background: #165dff; color: #fff; }
+.fee-tree-table { flex: 1; min-width: 0; }
+/* ---- v3.0 导出勾选左树 ---- */
+.export-picker { max-width: 640px; }
+.export-tree { background: #fff; border: 1px solid #e4e7ec; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; }
+.export-group { display: flex; gap: 8px; align-items: center; padding: 6px 0; font-size: 14px; cursor: pointer; }
+.export-group-block { margin-left: 8px; }
+.export-leaves { margin-left: 24px; }
+.export-leaf { display: flex; gap: 8px; align-items: center; padding: 5px 0; font-size: 13px; cursor: pointer; }
+/* ---- v3.0 定额联想 ---- */
+.autocomplete-list { position: absolute; left: 0; right: 0; top: 100%; z-index: 50; background: #fff; border: 1px solid #d0d4dc; border-radius: 6px; list-style: none; margin: 2px 0 0; padding: 4px 0; max-height: 260px; overflow: auto; box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
+.autocomplete-list li { padding: 8px 12px; cursor: pointer; font-size: 13px; }
+.autocomplete-list li.active { background: #eef2ff; }
+.autocomplete-empty { position: absolute; left: 0; right: 0; top: 100%; z-index: 50; background: #fff; border: 1px solid #d0d4dc; border-radius: 6px; padding: 10px 12px; font-size: 13px; color: #888; }
+.wb-subtotal { display: flex; gap: 28px; background: #eef2ff; border: 1px solid #c7d6ff; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; font-size: 14px; }
+.wb-subtotal b { font-size: 20px; margin-left: 6px; }
+
 /* ---- 工作台（v2 增量 5，§9 三区 + 顶栏，不分页签） ---- */
 .workbench { display: grid; grid-template-columns: 300px 1fr 420px; gap: 12px; align-items: start; }
 .wb-left { background: #fff; border: 1px solid #e4e7ec; border-radius: 8px; padding: 12px; max-height: calc(100vh - 150px); overflow: auto; }

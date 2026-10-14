@@ -7,10 +7,17 @@
  * flush()：清定时器，取走当前待发送桶，调 saveFn；发送期间新 markDirty 进下一桶，
  * 本次 flush 循环继续发送下一桶，直到桶空。
  */
+/**
+ * v3.0 §13.7 完成通知：opts.onFlushStart() 在每次实际写盘前调用（App 置 saving）；
+ * opts.onSettled({ source }) 在每次写盘桶完成后调用（App 据此置 saved / 已自动保存）。
+ * source：'auto' = 800ms 定时触发；'manual' = 显式 flush({ source: 'manual' })（保存按钮/导出前排空）。
+ */
 export function createSaveQueue(saveFn, opts = {}) {
   const delayMs = opts.delayMs ?? 800;
   const setTimeoutFn = opts.setTimeoutFn ?? setTimeout;
   const clearTimeoutFn = opts.clearTimeoutFn ?? clearTimeout;
+  const onFlushStart = opts.onFlushStart || null;
+  const onSettled = opts.onSettled || null;
   const merge = opts.merge ?? ((acc, value) => ({
     patch: { ...(acc?.patch || {}), ...(value?.patch || {}) },
     baseVersion: acc ? acc.baseVersion : value?.baseVersion,
@@ -40,14 +47,19 @@ export function createSaveQueue(saveFn, opts = {}) {
     schedule();
   }
 
-  function flush() {
+  function flush(flushOpts = {}) {
     if (flushPromise) return flushPromise;
+    const source = flushOpts.source || 'auto';
     flushPromise = (async () => {
       for (;;) {
         if (timer != null) { clearTimeoutFn(timer); timer = null; }
         const cur = take();
         if (!cur) break;
-        await saveFn(cur);
+        if (onFlushStart) { try { onFlushStart({ source }); } catch { /* 通知回调异常不阻塞保存 */ } }
+        try { await saveFn(cur); }
+        finally {
+          if (onSettled) { try { onSettled({ source }); } catch { /* 同上 */ } }
+        }
       }
     })().finally(() => { flushPromise = null; });
     return flushPromise;

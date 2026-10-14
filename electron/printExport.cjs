@@ -27,9 +27,10 @@ const fmtTrim = (v) => String(Math.round(Number(num(v)) * 1000) / 1000);
 /** 费率/折扣转百分比数字（去浮点噪声：0.015→1.5，0.379→37.9）。 */
 const pct = (x) => Number((Number(num(x)) * 100).toFixed(4));
 
-const F_TITLE = { name: '宋体', size: 18, bold: true };
-const F_TITLE_COVER = { name: '宋体', size: 36, bold: true };
-const F_NOTES_TITLE = { name: '宋体', size: 21, bold: true };
+/** v3.0 §13.6：各表表名标题 + 编制说明标题 → Noto Sans CJK SC（与参考结算书一致）；其余宋体/黑体照旧。 */
+const F_TITLE = { name: 'Noto Sans CJK SC', size: 18, bold: true };
+const F_TITLE_COVER = { name: 'Noto Sans CJK SC', size: 36, bold: true };
+const F_NOTES_TITLE = { name: 'Noto Sans CJK SC', size: 21, bold: true };
 const F_COVER_VAL = { name: '黑体', size: 18, bold: true };
 const F_COVER_LABEL = { name: '宋体', size: 18, bold: true };
 const F_COVER_NO = { name: '宋体', size: 12, bold: true };
@@ -1036,7 +1037,8 @@ function buildTable5(wb, ctx) {
     setCell(ws, base + 3, 1, '序号', { font: F_HEAD, alignment: A_CENTER });
     mergeCells(ws, `B${base + 3}:B${base + 4}`);
     setCell(ws, base + 3, 2, '费用名称', { font: F_HEAD, alignment: A_CENTER });
-    mergeCells(ws, `C${base + 3}:D${base + 3}`);
+    // v3.0 修正：表头“计算依据及方法”合并 C3:D4（与参考结算书 raw.json 合并区一致；此前误写 C3:D3）。
+    mergeCells(ws, `C${base + 3}:D${base + 4}`);
     setCell(ws, base + 3, 3, '计算依据及方法', { font: F_HEAD, alignment: A_CENTER });
     mergeCells(ws, `E${base + 3}:G${base + 3}`);
     setCell(ws, base + 3, 5, '金 额（元）', { font: F_HEAD, alignment: A_CENTER });
@@ -1104,7 +1106,8 @@ async function exportBudgetBook(filePath, project, result, profile, opts = {}) {
   const ctx = buildCtx(project, result, profile);
   const wb = new ExcelJS.Workbook();
   wb.creator = '通信概预算';
-  const include = new Set(opts.includeSheets || SHEET_ORDER);
+  // v3.0：导出勾选传 include（与 includeSheets 同义，任一传入即生效；缺省全选）。
+  const include = new Set(opts.include || opts.includeSheets || SHEET_ORDER);
   if (include.has('报表封面')) buildCover(wb, ctx);
   if (include.has('编制说明')) buildNotes(wb, ctx);
   if (include.has('建设项目总算表(汇总表)')) buildSummary(wb, ctx);

@@ -1,29 +1,45 @@
 import { useState } from 'react';
-import { LIBRARY_VIEWS, LIBRARY_VIEW_MAP } from '../lib/libraryDefs.js';
+import { LIBRARY_VIEW_MAP } from '../lib/libraryDefs.js';
 import {
   getViewRows, setViewRows, classifyImport, applyImport, countReferences, normalizeImportedRows,
 } from '../lib/libraryOps.js';
 import { DISCOUNT_LINE_DEFS } from '../engine/discount.mjs';
+import { PROJECT_TYPES } from '../lib/store.js';
+import { resolveEditingProfile } from '../lib/v3.js';
 import LibraryTable from '../components/LibraryTable.jsx';
 import ImportDiffPreview from '../components/ImportDiffPreview.jsx';
+import FeeTreeTable from '../components/FeeTreeTable.jsx';
+import { calcFor } from '../lib/store.js';
 
 /**
- * 定制设置（v2 增量 4）：当前配置方案的库管理壳——方案选择器 + 11 个库 Tab
- * （复用 LibraryTable）+ 打折规则 Tab。配置方案的新建/复制/删除/导入导出在“配置方案”页。
+ * 定制设置（v3.0 §13.8 / §13.11.2）：编辑目标 = settings.editingProfileId，不碰 activeProfileId。
+ * section/tab 由 App 导航传入：libraries（库表）/ feeRules（费率左树+右表 / 表五费用 / 打折规则 / 关联规则）
+ * / settings（整库备份 / 导入导出）。
  */
-export default function Settings({ db, updateDb, pushUndo, notify }) {
-  const [tab, setTab] = useState('quotas');
+export default function Settings({ db, updateDb, pushUndo, notify, section, tab }) {
   const [importState, setImportState] = useState(null);
+  const [feeProjectType, setFeeProjectType] = useState('通信线路工程');
 
-  const profile = db.configurationProfiles?.find((p) => p.id === db.settings?.activeProfileId)
-    ?? db.configurationProfiles?.[0] ?? null;
-  const view = LIBRARY_VIEW_MAP[tab] || null;
+  const profile = resolveEditingProfile(db);
+  // 取费左树右表需要一个计算结果做金额列：用首个使用该方案的工程，无则用空工程占位（金额为空）。
+  const feeExampleProject = (db.projects || []).find((p) => p.profileId === profile?.id)
+    || { id: 'fee-preview', name: '预览', profileId: profile?.id, info: { 工程类型: feeProjectType }, quantities: [], materialAdjust: [], materialPriceOverrides: [], ruleOverrides: [], rateOverrides: {}, table5Overrides: [] };
+  let feeResult = null;
+  try { feeResult = profile ? calcFor(db, feeExampleProject) : null; } catch { feeResult = null; }
+
+  const viewKey = section === 'libraries' ? tab : (section === 'feeRules' && (tab === 'table5fees' || tab === 'rulesAlt') ? tab : null);
+  const view = viewKey ? LIBRARY_VIEW_MAP[viewKey] : null;
   const rows = view && profile ? getViewRows(profile, view) : [];
 
-  const patchView = (v, fn, opts) => updateDb((d) => {
+  const patchProfile = (fn, opts) => updateDb((d) => {
     const i = d.configurationProfiles.findIndex((p) => p.id === profile?.id);
     if (i < 0) return;
-    d.configurationProfiles[i] = setViewRows(d.configurationProfiles[i], v, fn(getViewRows(d.configurationProfiles[i], v)));
+    fn(d.configurationProfiles[i]);
+    d.configurationProfiles[i].updatedAt = new Date().toISOString();
+  }, opts);
+  const patchView = (v, fn, opts) => patchProfile((prof) => {
+    const next = setViewRows(prof, v, fn(getViewRows(prof, v)));
+    Object.assign(prof, next);
   }, opts);
 
   const handleEdit = (id, patch) => patchView(view, (rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -74,28 +90,66 @@ export default function Settings({ db, updateDb, pushUndo, notify }) {
     }
   };
 
-  const patchDiscount = (fn) => updateDb((d) => {
-    const prof = d.configurationProfiles?.find((p) => p.id === profile?.id);
-    if (prof) { fn(prof.discountRule); prof.updatedAt = new Date().toISOString(); }
+  const patchDiscount = (fn) => patchProfile((prof) => { fn(prof.discountRule); });
+  /** 费率右表编辑：写回编辑方案 rates.byProjectType[工程类型][字段]，走 savePatch。 */
+  const handleRateChange = (key, rateField, value) => patchProfile((prof) => {
+    if (!prof.rates) prof.rates = { byProjectType: {}, winterTable: {}, vatRates: {} };
+    if (!prof.rates.byProjectType) prof.rates.byProjectType = {};
+    if (!prof.rates.byProjectType[feeProjectType]) prof.rates.byProjectType[feeProjectType] = {};
+    prof.rates.byProjectType[feeProjectType][rateField] = value;
   });
 
   if (!profile) return <div className="empty">暂无配置方案，请到“配置方案”页新建。</div>;
 
+  if (section === 'settings') {
+    return (
+      <div>
+        <h2>设置</h2>
+        <p className="muted">整库备份 / 导入导出（全部走主进程写真实路径）。</p>
+        <div className="row">
+          <button className="btn" onClick={async () => {
+            const file = await window.api.saveFile({ defaultPath: '概预算整库备份.json', filters: [{ name: 'JSON', extensions: ['json'] }] });
+            if (!file) return;
+            const res = await window.api.exportBackup({ filePath: file });
+            if (res?.ok) notify(`整库已备份：${res.filePath}`, { undo: false });
+            else alert(`备份失败：${res?.error || '未知错误'}`);
+          }}>整库备份</button>
+          <button className="btn" onClick={async () => {
+            const file = await window.api.openFile([{ name: 'JSON', extensions: ['json'] }]);
+            if (!file) return;
+            const res = await window.api.importProfile({ filePath: file });
+            if (res?.ok) notify(`已导入配置方案“${res.profile.name}”`, { undo: false });
+            else alert(`导入失败：${res?.error || '未知错误'}`);
+          }}>导入方案文件</button>
+          <button className="btn" onClick={async () => {
+            const file = await window.api.saveFile({ defaultPath: `${profile.name}.json`, filters: [{ name: 'JSON', extensions: ['json'] }] });
+            if (!file) return;
+            const res = await window.api.exportProfile({ profileId: profile.id, filePath: file });
+            if (res?.ok) notify(`已导出：${res.filePath}`, { undo: false });
+            else alert(`导出失败：${res?.error || '未知错误'}`);
+          }}>导出正在编辑的方案</button>
+        </div>
+        <p className="muted" style={{ marginTop: 12 }}>正在编辑方案：{profile.name}（编辑目标）；新建工程默认方案：{(db.configurationProfiles || []).find((p) => p.id === db.settings?.activeProfileId)?.name || '—'}（两者分离，见 §13.8）。</p>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <h2>定制设置 — 库管理</h2>
-      <p className="muted">这里改的是当前配置方案（{profile.name}）的库：改完后该方案下所有工程重新计算；单个工程的特例（单价、调整量）请在工程内改，不会污染方案。配置方案的新建/复制/删除/导入导出在“配置方案”页。</p>
-      <div className="toolbar">
-        <label>配置方案 <select className="input" value={profile.id} onChange={(e) => updateDb((d) => { d.settings.activeProfileId = e.target.value; })}>
-          {(db.configurationProfiles || []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select></label>
-      </div>
-      <div className="tabs">
-        {LIBRARY_VIEWS.map((v) => (
-          <button key={v.key} className={tab === v.key ? 'tab active' : 'tab'} onClick={() => setTab(v.key)}>{v.label}</button>
-        ))}
-        <button className={tab === 'discount' ? 'tab active' : 'tab'} onClick={() => setTab('discount')}>打折规则</button>
-      </div>
+      <h2>{section === 'libraries' ? '基础库' : '取费规则'} <span className="muted">— 正在编辑方案：{profile.name}</span></h2>
+      <p className="muted">这里改的是编辑目标方案（{profile.name}）的库/费率：改完后该方案下所有工程重新计算；单个工程的特例（单价、调整量）请在工程内改，不会污染方案。新建工程默认方案不受这里影响（到“配置方案”页设为默认）。</p>
+
+      {section === 'feeRules' && tab === 'rates' && (
+        <div>
+          <div className="toolbar">
+            <label>工程类别 <select className="input" value={feeProjectType} onChange={(e) => setFeeProjectType(e.target.value)}>
+              {PROJECT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select></label>
+            <span className="muted">金额列取自{feeExampleProject.id === 'fee-preview' ? '空工程预览（金额为空）' : `工程“${feeExampleProject.name}”`}的折前表二。</span>
+          </div>
+          <FeeTreeTable profile={profile} result={feeResult} projectType={feeProjectType} onRateChange={handleRateChange} />
+        </div>
+      )}
 
       {view && (
         <LibraryTable
@@ -110,7 +164,7 @@ export default function Settings({ db, updateDb, pushUndo, notify }) {
         />
       )}
 
-      {tab === 'discount' && (
+      {section === 'feeRules' && tab === 'discount' && (
         <div>
           <p className="muted">打折规则随配置方案保存与导出（§6）。折扣率 1 = 不打折；勾选的费用项不打折（折后 = 折前）；勾选“折后=0”的费用项在打折时折后为 0（折扣率 = 1 时不生效）；同一项不可同时勾选两列。</p>
           <div className="row">

@@ -279,5 +279,8 @@ ipcMain.handle('db:exportBackup', (_e, args) => {
 ipcMain.handle('excel:exportBudgetBook', (_e, args) => {
   const profileId = args?.profileId || args?.project?.profileId;
   const profile = (db?.configurationProfiles || []).find((p) => p.id === profileId) || null;
-  return printExport.exportBudgetBook(args.filePath, args.project, args.result, profile);
+  // v3.0：导出勾选透传（渲染进程 ExportPicker 的 include / includeSheets）。
+  return printExport.exportBudgetBook(args.filePath, args.project, args.result, profile, {
+    includeSheets: args.includeSheets || args.include,
+  });
 });

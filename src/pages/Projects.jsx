@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { calcFor, money, newProject, uid } from '../lib/store.js';
+import { sortProjectsRecent } from '../lib/v3.js';
 import ConfirmDialog from '../components/ConfirmDialog.jsx';
 
-export default function Projects({ db, updateDb, openProject, setView, pushUndo, notify }) {
+export default function Projects({ db, updateDb, openProject, setNav, pushUndo, notify, onSelectionChange }) {
   const [q, setQ] = useState('');
   const [name, setName] = useState('');
   const [templateId, setTemplateId] = useState('');
@@ -12,8 +13,13 @@ export default function Projects({ db, updateDb, openProject, setView, pushUndo,
 
   // 增量 1 最小接线：工程列表展示所属配置方案 + 按方案筛选。
   const profileName = (p) => db.configurationProfiles?.find((x) => x.id === p.profileId)?.name ?? '—';
-  const list = db.projects.filter((p) => (!q || p.name.includes(q)) && (!profileFilter || p.profileId === profileFilter));
-  const toggle = (id) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  // v3.0 §13.4：最近工程置顶（按 lastOpenedAt 降序）。
+  const list = sortProjectsRecent(db.projects.filter((p) => (!q || p.name.includes(q)) && (!profileFilter || p.profileId === profileFilter)));
+  const toggle = (id) => setSelected((s) => {
+    const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id);
+    if (onSelectionChange) onSelectionChange(n.size);
+    return n;
+  });
 
   const add = () => {
     const n = name.trim();
@@ -40,6 +46,7 @@ export default function Projects({ db, updateDb, openProject, setView, pushUndo,
     );
     updateDb((d) => { d.projects = d.projects.filter((p) => !ids.includes(p.id)); }, { major: true });
     setSelected(new Set());
+    if (onSelectionChange) onSelectionChange(0);
     setConfirm(null);
     if (notify) notify(`已删除 ${ids.length} 个工程，可撤销`, { undo: true });
     return names;
@@ -81,7 +88,7 @@ export default function Projects({ db, updateDb, openProject, setView, pushUndo,
         <button className="btn" onClick={exportSelected}>导出选中（Excel）</button>
         <button className="btn danger" disabled={!selected.size}
           onClick={() => askDelete([...selected])}>删除选中</button>
-        <button className="btn" onClick={() => setView('batch')}>批量生成 →</button>
+        <button className="btn" onClick={() => setNav({ section: 'batch', tab: null })}>批量生成 →</button>
       </div>
       <table className="table">
         <thead><tr><th style={{ width: 30 }}><input type="checkbox" onChange={(e) => setSelected(e.target.checked ? new Set(list.map((x) => x.id)) : new Set())} /></th>
