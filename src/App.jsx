@@ -113,23 +113,17 @@ export default function App() {
     } catch (e) { setLoadError(`数据加载失败：${e.message}`); }
   };
 
-  if (loadError) {
-    return (
-      <div style={{ padding: 40 }}>
-        <h2>数据加载失败</h2>
-        <p style={{ color: '#b00', whiteSpace: 'pre-wrap' }}>{loadError}</p>
-        <button className="btn primary" onClick={retryLoad}>重试</button>
-        <p className="muted" style={{ marginTop: 12 }}>迁移失败时原数据未改动，v1 快照已保存为 budget-data.v1-backup-*.json。</p>
-      </div>
-    );
-  }
-  if (!db) return <div style={{ padding: 40 }}>正在加载数据…</div>;
-
   /**
    * 增量保存（§3.3 db:savePatch + 增量 5 saveQueue 节流）：
    * 乐观更新本地状态，补丁推进队列聚合 800ms 后一次发送；行内编辑打字不再每次写盘。
    * baseVersion 取本次编辑前本地状态的版本；队列内首个补丁的版本为本次发送的 baseVersion。
    * opts.major=true 时触发滚动备份（批量删除 / 全部替换导入 / 删方案 / 删工程，B2）。
+   *
+   * 注意：以下定义（updateDb / handleUndo / 键盘撤销 useEffect）必须放在 early return 之前。
+   * 增量 8 修复：键盘撤销的 useEffect 原先在 `if (loadError) / if (!db)` 提前返回之后，
+   * 首渲染（db=null）时不执行、数据加载后才执行 → Hooks 数量变化 → React 抛
+   * "Rendered more hooks than during the previous render"，整树卸载、页面空白。
+   * 规则：本组件内所有 Hooks 与被 Hooks 回调引用的函数定义，一律放在 early return 之前。
    */
   const updateDb = (fn, opts = {}) => {
     const prev = dbRef.current;
@@ -144,7 +138,7 @@ export default function App() {
     saveQueueRef.current.markDirty({ patch, baseVersion, major: !!opts.major });
   };
   const openProject = (id) => { setOpenId(id); setView('detail'); };
-  const project = openId ? db.projects.find((p) => p.id === openId) : null;
+  const project = openId && db ? db.projects.find((p) => p.id === openId) : null;
 
   /** 撤销（B2）：弹出快照并写回（经 updateDb + savePatch，与正常保存同一链路）。 */
   const handleUndo = () => {
@@ -180,6 +174,18 @@ export default function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+
+  if (loadError) {
+    return (
+      <div style={{ padding: 40 }}>
+        <h2>数据加载失败</h2>
+        <p style={{ color: '#b00', whiteSpace: 'pre-wrap' }}>{loadError}</p>
+        <button className="btn primary" onClick={retryLoad}>重试</button>
+        <p className="muted" style={{ marginTop: 12 }}>迁移失败时原数据未改动，v1 快照已保存为 budget-data.v1-backup-*.json。</p>
+      </div>
+    );
+  }
+  if (!db) return <div style={{ padding: 40 }}>正在加载数据…</div>;
 
   return (
     <div className="app">

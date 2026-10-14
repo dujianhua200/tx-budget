@@ -63,12 +63,12 @@ jobs:
         run: |
           set -e
           APP="dist-mac/mac-${{ matrix.arch }}/通信概预算.app"
-          test -f "$APP/Contents/Resources/app.asar"
+          test -f "$APP/Contents/Resources/app/src/lib/profiles.js"
+          test -f "$APP/Contents/Resources/app/dist/index.html"
+          test -f "$APP/Contents/Resources/app/node_modules/exceljs/dist/exceljs.js"
+          test ! -e "$APP/Contents/Resources/app.asar"
           codesign --verify --strict --verbose=2 "$APP"
-          npx --yes asar list "$APP/Contents/Resources/app.asar" > /tmp/asar-list.txt
-          grep -E "(^|/)dist/index.html$" /tmp/asar-list.txt
-          grep -E "(^|/)node_modules/exceljs/dist/exceljs.js$" /tmp/asar-list.txt
-          echo "包验证通过：含前端 + exceljs + 临时签名"
+          echo "包验证通过：含前端 + exceljs + 主进程动态 import 目标 + 临时签名（asar 已关）"
 
       - name: Upload to Release
         env:

@@ -412,6 +412,17 @@ async function exportBudgetBook(filePath, project, result, profile, opts)
 
 `preload.cjs` 的 `window.api` 与上表一一对应；`Settings.jsx` 中现有的 `const { ipcRenderer } = { ipcRenderer: null }` 死代码**删除**（B1 遗留）。
 
+### 3.4 打包清单口径（`build.files` 闭包 + asar）
+
+- `package.json` 的 `build.files` 是 electron-builder 打包闭包的**唯一来源**：不在 glob 内的文件不会进包，无论源码树里是否存在。
+- 主进程（`electron/*.cjs`）依赖的文件必须全部被闭包覆盖：
+  - CJS `require()` 的同目录文件由 `electron/**` 覆盖；
+  - 动态 `import()` 的 ESM 文件（如 `src/lib/profiles.js` 及其传递 import 的 `src/engine/*.mjs`）**不在默认闭包内**，必须显式列入 `files`（只列用到的文件，不许 `src/**` 整目录打进包）。
+- **规则**：新增主进程动态 import 时，必须同步更新 `build.files` + `tests/packaging.test.mjs`；测试扫描 `electron/*.cjs` 的动态 import 目标，逐个断言被 glob 覆盖，未覆盖则 `npm test` 失败，CI 直接拦截。
+- **asar 决定：`"asar": false`**。主进程动态 `import()` 走 Node ESM loader，不经过 Electron 的 asar 补丁路径，asar 内 ESM import 行为不确定；关闭 asar 后打包布局与 dev 完全一致（`Resources/app/` 即源码布局），出问题可直接在包内查文件。代价：包内文件明文可见（本应用无秘密代码/凭证，接受）；包体积略增（接受）。
+- CI 联动：macOS `Verify package` 不许断言 `app.asar` 存在（asar 已关）；改为断言 `Resources/app/src/lib/profiles.js` + `dist/index.html` + `node_modules/exceljs/dist/exceljs.js` 存在 + `codesign --verify` 通过。
+- v2.0.0 事故（见增量 8）：`files` 漏 `src/`，`main.cjs:8` 动态 import 打包后不存在 → `loadDb()` 抛错 → `whenReady` 回调拒绝 → `createWindow()` 从未执行 → 有菜单栏、无窗口、Dock 点击无反应。测试全过因测试跑在源码树；CI Verify 只查文件存在/大小，从不启动应用。
+
 ---
 
 ## 4. 迁移方案（v1 → v2）
@@ -870,6 +881,8 @@ t1.afterDiscount = r2((t2.exclTax - t2.mainMat - t2.regFee) * discount + t2.main
 | `tests/print.test.mjs` | 打印导出结构 | 11 张表名齐全；每表列宽/合并区数与 §5.4 一致；表尾在固定行；页码为单元格文本；数值单元格 `data_type === 'n'`；表二两张表版式一致；表四甲三组小计 + 总计；表三甲分页（41 行 → 2 页，第 2 页重复标题） |
 | `tests/crosscheck.test.mjs`（改） | LO 交叉验证 | 夹具重建（见 §12.2）；断言扩展：折前/折后双版本表二、安全生产费、汇总表新口径；规费合计容差 0.02（§6.5），其余 0.011 |
 | `tests/excel.test.mjs`（改） | 导入/导出 | 导出断言改为打印导出（见上）；导入断言沿用；新增通用 `importLibrary`/`exportLibrary` 往返断言 |
+| `tests/packaging.test.mjs`（新，增量 8） | 打包闭包 | 扫描 `electron/*.cjs` 的动态 import 目标，逐个断言被 `build.files` glob 覆盖；断言 `asar === false`；`electron/main.cjs` 入口被覆盖 |
+| `tests/hooks.test.mjs`（新，增量 8） | Hooks 顺序 | `src/App.jsx` 最后一个 Hook 调用在第一个 early return 之前（防“Rendered more hooks”整树卸载空白页） |
 
 - 现有测试基数：引擎 12 + 交叉验证 29 + Excel 13 = 54。v2 目标：现有 54 项中除“旧口径”断言（安全生产费 1.5%、汇总表旧公式、表一快捷折扣、简易导出版式）外全部保留并通过；旧口径断言按新口径改写（改写清单在增量 2 变更记录中逐条列出，不许悄悄删除断言）。
 - 测试不依赖 Electron（`printExport.cjs` 与 `calc.mjs` 均可在 Node 直跑）；`window.api` 相关逻辑只在渲染进程，测试覆盖到 `profiles.js` / `saveQueue.js` / `undo.js` 纯函数层。
@@ -1658,6 +1671,26 @@ const flushSaves = () => saveQueueRef.current.flush();
   - 规费子项显示仍未裁决（§6.2 保持现状）；Q1/Q3–Q7 未决（附录 B），本增量不重新决策。
   - 未做真机点按走查（本环境无 Electron 真机验证；验证为全量测试 + `npm run build` + LibreOffice 往返 + 代码级核查，同增量 1–6 口径）。
   - 本增量不 push、不打 tag、不触发构建、不动 Release、不 git commit（§1.4：发布动作由主代理核验后执行）。
+
+### 增量 8（2026-10-14，实施者：子代理）
+- 改了什么：
+  - 架构：`docs/v2-design.md` 新增 §3.4（打包清单口径：`build.files` 闭包 + asar 决定 + 动态 import 规则 + CI Verify 联动）、§12.1 新增打包闭包测试行，追加本节。
+  - 改：`package.json`（`build.files` 新增 `src/lib/profiles.js` + `src/engine/rates.mjs` + `src/engine/discount.mjs`；新增 `"asar": false`；`version` 2.0.0 → 2.0.1）、`.github/workflows/build.yml`（macOS Verify：不再断言 `app.asar` 存在，改为断言 unpacked 布局下 `Resources/app/src/lib/profiles.js` + `dist/index.html` + `exceljs` 存在 + `codesign --verify`）。
+  - 测试新增：`tests/packaging.test.mjs`（扫描 `electron/*.cjs` 动态 import 目标，逐个断言被 `build.files` glob 覆盖；断言 `asar === false`），接入 `npm test` 链。
+  - 改（冒烟发现，见验证证据）：`src/App.jsx`（键盘撤销的 `useEffect` + `updateDb` / `handleUndo` 移到 early return 之前，修 Hooks 顺序违规导致的空白页；`project` 取值加 `db &&` 守卫）+ 测试新增 `tests/hooks.test.mjs`（静态检查：App.jsx 最后一个 Hook 调用在第一个 early return 之前）。
+- 为什么：v2.0.0 真机反馈“Mac 版本打不开”——点软件看不到界面，只能看到英文菜单（用户截图）。根因见 §3.4：`files` 漏 `src/`，`main.cjs:8` 的动态 import 在打包后解析失败 → `loadDb()` 抛错 → `whenReady` 回调拒绝 → `createWindow()` 从未执行，连 `activate` 处理器也没注册。v1 无此问题（v1 主进程不 import src 文件）。冒烟另发现 App.jsx Hooks 违规（见上）：此前被 loadDb 失败掩盖，修完打包闭包后才暴露为“有窗口、无界面”。
+- 验证证据：
+  - 复现（未修复代码 Linux 打包）：`npx electron-builder --linux --x64` 打包后 `TXBUDGET_SMOKE=1` 运行，`UnhandledPromiseRejectionWarning: ERR_MODULE_NOT_FOUND …/app.asar/src/lib/profiles.js`，无 SMOKE 行、无窗口——与用户“有菜单栏、无窗口”一致。
+  - 修复后重新打包：打包布局 `resources/app/`（无 `app.asar`），`src/lib/profiles.js` + `src/engine/rates.mjs` + `src/engine/discount.mjs` 均在包内；冒烟 `SMOKE hasApi=true text="通信概预算\n工程批量生成定制设置配置方案\n451号文 · 宇翔表二格式 · 0 个工程\n…暂无工程…"`，无渲染进程报错。
+  - 冒烟另发现 App.jsx Hooks 违规：修完打包闭包后首次冒烟 `SMOKE hasApi=true text=""` + 渲染进程 `Minified React error #310`；开发模式复现为 Hooks 顺序错误（App.jsx:39，`Rendered more hooks than during the previous render`）；修完后 dev 与打包冒烟文本均正常（见上）。
+  - `npm test`：**998 通过 / 0 失败**（引擎 12 + crosscheck 29 + Excel 14 + 迁移 74 + savePatch 55 + discount 103 + print 492 + batch 156 + workbench 46 + packaging 14 + hooks 3）。
+  - `npm run build` 通过（255.05 kB JS）。
+  - packaging 测试反向验证：旧 files 清单 → 5 失败（asar + profiles.js 覆盖 + 闭包 3 项）；恢复后 14/0。
+- 已知遗留：
+  - 规费子项显示仍未裁决（§6.2 保持现状）；Q1/Q3–Q7 未决（附录 B），本增量不重新决策。
+  - 未做 Mac/Windows 真机点按走查（本环境为 Linux 打包 + xvfb 冒烟；Mac/Windows 真机行为以用户验收为准）。
+  - 本次 QA 中 `/tmp` tmpfs 曾满（另一并行任务的 DMG 文件），测试与打包用 `TMPDIR` 重定向到仓库内 `.tmp-pack`（QA 后已清理）；`npm test` 在默认 TMPDIR 下曾因 ENOSPC 中断，非测试本身失败。
+- 发布：本任务按主代理指令直接发布 v2.0.1（push + tag `v2.0.1` + CI），不改 v2.0.0 的 Release、不移动任何 tag。
 
 ### v2 发布候选证据清单（增量 1–6 汇总，2026-10-14）
 - 候选命名：`v2-增量6-发布候选-20261014`（仅用于沟通，不作为 git tag；真正的版本号/tag 由主代理在发布时定）。
