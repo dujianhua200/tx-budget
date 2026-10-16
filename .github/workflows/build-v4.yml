@@ -104,15 +104,18 @@ jobs:
           echo '<key>NSHighResolutionCapable</key><true/>' >> ./publish/TxBudget.app/Contents/Info.plist
           echo '</dict></plist>' >> ./publish/TxBudget.app/Contents/Info.plist
           plutil -lint ./publish/TxBudget.app/Contents/Info.plist
-      - name: Zip .app preserving permissions
+      - name: Create DMG
         run: |
-          cd ./publish
-          ditto -c -k --sequesterRsrc --keepParent TxBudget.app TxBudget-macOS-arm64.app.zip
+          hdiutil create -volname "TxBudget" \
+            -srcfolder ./publish/TxBudget.app \
+            -ov -format UDZO \
+            ./publish/TxBudget-macOS-arm64.dmg
+          hdiutil verify ./publish/TxBudget-macOS-arm64.dmg
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: TxBudget-macOS-arm64
-          path: ./publish/TxBudget-macOS-arm64.app.zip
+          path: ./publish/TxBudget-macOS-arm64.dmg
 
   build-windows:
     name: Windows Avalonia compile check
