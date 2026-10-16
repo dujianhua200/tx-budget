@@ -1,34 +1,56 @@
-# 通信概预算 App（Electron + React + 纯 JS 引擎）
+# 通信概预算 v4.0（.NET 8 + Avalonia UI）
 
-451号文通信工程概预算桌面应用。核心：**可定制**（定额/材料/费率/关联规则/工程信息全部可改、可导入导出）+
-**批量生成工程**（批量新建/导入/导出/改价/改费率）。
+451号文通信工程概预算桌面应用。
 
-## 目录
+## 技术栈
 
-- `src/engine/calc.mjs` — 计算引擎（纯 JS，无依赖）：表三甲/乙/丙 → 表四甲/乙 → 表二 → 表一/表五/汇总表
-- `src/pages/` — 工程列表 / 工程详情（工程量/费用表/材料表/表三/工程信息）/ 批量生成 / 定制设置
-- `electron/` — 主进程（窗口、JSON 存储、备份）+ `excel.cjs`（Excel 导入/导出）
-- `data/seed.json` — 种子数据（从 v3.0 母版提取：定额 2622、短单 165、材料 175、规则 117、费率矩阵、机械/仪表映射）
-- `tests/` — 引擎测试 + LO 交叉验证 + Excel 导入导出测试
+- **.NET 8** — 跨平台运行时
+- **Avalonia UI** — 跨平台原生桌面框架（macOS + Windows），替代 Electron/嵌入式 webview
+- **C# 计算引擎** — 从 v3 纯 JS 引擎完整移植，Oracle 对拍验证
+- **ClosedXML 0.102.3** — Excel 导入/导出
+- **xUnit** — 单元测试
 
-## 开发
+## 模块结构
+
+| 项目 | 说明 | 目标框架 |
+|------|------|----------|
+| `src/TxBudget.Core` | 计算引擎（CalcEngine / DiscountEngine / RateResolver / 数据模型） | `net8.0` |
+| `src/TxBudget.Batch` | 批量工程生成、工作量表导入 | `net8.0` |
+| `src/TxBudget.Export` | 概预算表 Excel 导出（~22 种报表） | `net8.0` |
+| `src/TxBudget.Library` | 定额库/材料库/机械库/费率模板 CRUD | `net8.0` |
+| `src/TxBudget.App` | **WPF 占位**（待迁移至 Avalonia） | `net8.0-windows` |
+| `src/TxBudget.App.Workbench` | **WPF 占位**（待迁移至 Avalonia） | `net8.0-windows` |
+
+## 关键特性
+
+- **双表二**：同时保留折扣前和折扣后表二，安全生产费按折扣前数据计算
+- **折扣模型 v2**：11 项措施费折扣后归零；主材/辅材/赔补费/注册费/安全生产费不参与折扣
+- **跨平台**：macOS（Apple Silicon arm64，主要平台）+ Windows（x64）
+- **无签名分发**：macOS 走未签名 `.app`，首次运行需在「系统设置 → 隐私与安全性 → 仍要打开」
+
+## 构建
 
 ```bash
-npm install
-npm test        # 引擎 12 + 交叉验证 29 + Excel 13
-npm run dev     # Vite 开发服务器（需另开窗口 npm start）
-npm start       # Electron（加载 dist）
-npm run pack    # 打包 macOS zip（Linux 下 dmg 需 sips，做 zip）
+# 还原并构建全部跨平台模块
+dotnet restore TxBudget.sln
+dotnet build src/TxBudget.Core/TxBudget.Core.csproj -c Release
+
+# 运行全部测试
+dotnet test tests/TxBudget.Core.Tests/TxBudget.Core.Tests.csproj -c Release
+dotnet test tests/TxBudget.Batch.Tests/TxBudget.Batch.Tests.csproj -c Release
+dotnet test tests/TxBudget.Export.Tests/TxBudget.Export.Tests.csproj -c Release
+dotnet test tests/TxBudget.Library.Tests/TxBudget.Library.Tests.csproj -c Release
 ```
 
-## 验证（2026-10-13）
+## 测试状态（2026-10-17）
 
-- 引擎单元测试 12/12（对标 v3.0 母版实测值：变体/变体*/通用/备选、挂钩 10000、工日X0.5、空压机 5.95 台班）。
-- LibreOffice 交叉验证 29/29（把同场景填入 v3.0 母版重算，表一/二/三甲乙丙/四甲乙/五/汇总表逐项一致）。
-- Excel 导入导出 13/13。Electron 冒烟（xvfb）：窗口加载、React 渲染、IPC 正常。
-- 母版 bug 已修正：里程为空 #N/A、测量不全 #VALUE!、冬雨季嵌套公式 #N/A。
+- **TxBudget.Core.Tests**：17/17 通过，Oracle 对拍误差 ≤0.011
+- **TxBudget.Batch.Tests**：12/12 通过
+- **TxBudget.Export.Tests**：13/13 通过
+- **TxBudget.Library.Tests**：22/22 通过
+- **WPF 占位应用**：仅 Windows 编译验证通过，待 Avalonia 迁移
 
-## 数据
+## 分支
 
-全部存在 `~/Library/Application Support/通信概预算/budget-data.json`，每次修改自动备份最近 5 份。
-首次启动从 `data/seed.json` 载入默认库；定额库由用户自己在 Excel 中维护后导入（合并/替换）。
+- `main` — v3.x（Electron + React + JS 引擎）
+- `v4-avalonia` — v4.0 当前开发分支（.NET 8 + Avalonia UI）

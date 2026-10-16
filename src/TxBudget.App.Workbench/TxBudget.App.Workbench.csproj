@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <LangVersion>12</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\TxBudget.Core\TxBudget.Core.csproj" />
+    <ProjectReference Include="..\TxBudget.App\TxBudget.App.csproj" />
+  </ItemGroup>
+</Project>

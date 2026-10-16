@@ -1,3 +1,33 @@
+# Legacy Node.js / Electron
 node_modules/
 dist/
 dist-mac/
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.dll
+*.exe
+*.pdb
+*.log
+
+# IDE
+.vs/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Test results
+TestResults/
+coverage/
+
+# Publish output
+publish/
+out/

@@ -1,0 +1,137 @@
+# 通信概预算 v4.0（Avalonia UI + .NET 8）：跨平台构建与测试
+# 触发方式：push 到 v4-avalonia / main 分支、PR、手动触发
+
+name: Build v4 Avalonia
+
+on:
+  push:
+    branches: [v4-avalonia, main]
+  pull_request:
+    branches: [v4-avalonia, main]
+  workflow_dispatch:
+
+jobs:
+  test-cross-platform:
+    name: Cross-platform tests (Core / Batch / Export / Library)
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore src/TxBudget.Core/TxBudget.Core.csproj
+
+      - name: Restore Batch
+        run: dotnet restore src/TxBudget.Batch/TxBudget.Batch.csproj
+
+      - name: Restore Export
+        run: dotnet restore src/TxBudget.Export/TxBudget.Export.csproj
+
+      - name: Restore Library
+        run: dotnet restore src/TxBudget.Library/TxBudget.Library.csproj
+
+      - name: Build Core
+        run: dotnet build src/TxBudget.Core/TxBudget.Core.csproj -c Release --no-restore -v minimal
+
+      - name: Build Batch
+        run: dotnet build src/TxBudget.Batch/TxBudget.Batch.csproj -c Release --no-restore -v minimal
+
+      - name: Build Export
+        run: dotnet build src/TxBudget.Export/TxBudget.Export.csproj -c Release --no-restore -v minimal
+
+      - name: Build Library
+        run: dotnet build src/TxBudget.Library/TxBudget.Library.csproj -c Release --no-restore -v minimal
+
+      - name: Test Core (oracle 对拍)
+        run: dotnet test tests/TxBudget.Core.Tests/TxBudget.Core.Tests.csproj -c Release --no-build --nologo -v normal
+
+      - name: Test Batch
+        run: dotnet test tests/TxBudget.Batch.Tests/TxBudget.Batch.Tests.csproj -c Release --no-build --nologo -v normal
+
+      - name: Test Export
+        run: dotnet test tests/TxBudget.Export.Tests/TxBudget.Export.Tests.csproj -c Release --no-build --nologo -v normal
+
+      - name: Test Library
+        run: dotnet test tests/TxBudget.Library.Tests/TxBudget.Library.Tests.csproj -c Release --no-build --nologo -v normal
+
+  build-macos-app:
+    name: macOS unsigned .app (osx-arm64)
+    runs-on: macos-latest
+    needs: test-cross-platform
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore Core
+        run: dotnet restore src/TxBudget.Core/TxBudget.Core.csproj
+
+      - name: Build Core (osx-arm64)
+        run: dotnet build src/TxBudget.Core/TxBudget.Core.csproj -c Release --no-restore -r osx-arm64 --self-contained false -v minimal
+
+      # Avalonia UI 迁移完成后取消注释以下步骤
+      # - name: Restore Avalonia App
+      #   run: dotnet restore src/TxBudget.App/TxBudget.App.csproj
+      # - name: Publish Avalonia App (osx-arm64)
+      #   run: dotnet publish src/TxBudget.App/TxBudget.App.csproj -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true -o ./publish/osx-arm64
+      # - name: Package .app
+      #   run: |
+      #     mkdir -p ./publish/TxBudget.app/Contents/MacOS
+      #     cp -R ./publish/osx-arm64/* ./publish/TxBudget.app/Contents/MacOS/
+      #     echo '<?xml version="1.0" encoding="UTF-8"?>' > ./publish/TxBudget.app/Contents/Info.plist
+      #     echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> ./publish/TxBudget.app/Contents/Info.plist
+      #     echo '<plist version="1.0"><dict>' >> ./publish/TxBudget.app/Contents/Info.plist
+      #     echo '<key>CFBundleExecutable</key><string>TxBudget.App</string>' >> ./publish/TxBudget.app/Contents/Info.plist
+      #     echo '<key>CFBundleIdentifier</key><string>com.txbudget.app</string>' >> ./publish/TxBudget.app/Contents/Info.plist
+      #     echo '<key>CFBundleName</key><string>TxBudget</string>' >> ./publish/TxBudget.app/Contents/Info.plist
+      #     echo '<key>CFBundleVersion</key><string>4.0.0</string>' >> ./publish/TxBudget.app/Contents/Info.plist
+      #     echo '</dict></plist>' >> ./publish/TxBudget.app/Contents/Info.plist
+      # - name: Upload macOS artifact
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: TxBudget-macOS-arm64
+      #     path: ./publish/TxBudget.app
+
+      - name: Placeholder - macOS UI pending Avalonia migration
+        run: echo "macOS .app 打包将在 Avalonia UI 迁移完成后启用。当前仅验证 Core 库可在 osx-arm64 编译。"
+
+  build-windows:
+    name: Windows WPF compile check (legacy, pending Avalonia)
+    runs-on: windows-latest
+    needs: test-cross-platform
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore TxBudget.sln
+
+      - name: Build Workbench
+        run: dotnet build src/TxBudget.App.Workbench/TxBudget.App.Workbench.csproj -c Release --no-restore -v minimal
+
+      - name: Build WPF App
+        run: dotnet build src/TxBudget.App/TxBudget.App.csproj -c Release --no-restore -v minimal
+
+      - name: Verify App.exe exists
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem src/TxBudget.App/bin/Release/net8.0-windows/TxBudget.App.exe | Select-Object -First 1
+          if (-not $exe) { throw "TxBudget.App.exe 未产出" }
+          Write-Output "WPF 编译产物: $($exe.FullName) $($exe.Length) bytes"

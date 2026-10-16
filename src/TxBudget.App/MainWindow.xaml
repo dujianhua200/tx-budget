@@ -1,0 +1,123 @@
+<Window x:Class="TxBudget.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="宇翔通信概预算软件 v4.0" Height="800" Width="1280"
+        WindowStartupLocation="CenterScreen">
+    <DockPanel>
+        <!-- 菜单栏 -->
+        <Menu DockPanel.Dock="Top" Name="MainMenu">
+            <MenuItem Header="文件(_F)">
+                <MenuItem Header="新建(_N)" Command="{Binding NewCommand}" InputGestureText="Ctrl+N"/>
+                <MenuItem Header="打开(_O)..." Command="{Binding OpenCommand}" InputGestureText="Ctrl+O"/>
+                <MenuItem Header="保存(_S)" Command="{Binding SaveCommand}" InputGestureText="Ctrl+S"/>
+                <MenuItem Header="另存为(_A)..." Command="{Binding SaveAsCommand}" InputGestureText="Ctrl+Shift+S"/>
+                <Separator/>
+                <MenuItem Header="关闭工程(_G)" Command="{Binding CloseProjectCommand}"/>
+                <Separator/>
+                <MenuItem Header="退出(_X)" Command="{Binding ExitCommand}" InputGestureText="Alt+F4"/>
+            </MenuItem>
+            <MenuItem Header="编辑(_E)">
+                <MenuItem Header="撤销(_U)" Command="{Binding UndoCommand}" InputGestureText="Ctrl+Z"/>
+                <MenuItem Header="重做(_R)" Command="{Binding RedoCommand}" InputGestureText="Ctrl+Y"/>
+                <Separator/>
+                <MenuItem Header="查找(_F)..." Command="{Binding FindCommand}" InputGestureText="Ctrl+F"/>
+                <MenuItem Header="替换(_H)..." Command="{Binding ReplaceCommand}" InputGestureText="Ctrl+H"/>
+            </MenuItem>
+            <MenuItem Header="工程(_P)">
+                <MenuItem Header="工程信息(_I)" Command="{Binding ShowProjectInfoCommand}"/>
+                <MenuItem Header="取费模板(_R)..." Command="{Binding ShowRateTemplateCommand}"/>
+                <Separator/>
+                <MenuItem Header="重新计算(_C)" Command="{Binding RecomputeCommand}" InputGestureText="F5"/>
+            </MenuItem>
+            <MenuItem Header="视图(_V)">
+                <MenuItem Header="表三甲" Command="{Binding ShowTable3ACommand}"/>
+                <MenuItem Header="表三乙" Command="{Binding ShowTable3BCommand}"/>
+                <MenuItem Header="表三丙" Command="{Binding ShowTable3CCommand}"/>
+                <MenuItem Header="表四甲" Command="{Binding ShowTable4ACommand}"/>
+                <MenuItem Header="表四乙" Command="{Binding ShowTable4BCommand}"/>
+                <MenuItem Header="表二" Command="{Binding ShowTable2Command}"/>
+                <MenuItem Header="表一" Command="{Binding ShowTable1Command}"/>
+                <MenuItem Header="表五甲" Command="{Binding ShowTable5Command}"/>
+                <MenuItem Header="汇总表" Command="{Binding ShowSummaryCommand}"/>
+            </MenuItem>
+            <MenuItem Header="工具(_T)">
+                <MenuItem Header="费率编辑(_R)..." Command="{Binding ShowRatesCommand}"/>
+                <MenuItem Header="打折规则(_D)..." Command="{Binding ShowDiscountCommand}"/>
+                <MenuItem Header="表五配置(_F)..." Command="{Binding ShowTable5ConfigCommand}"/>
+            </MenuItem>
+            <MenuItem Header="帮助(_H)">
+                <MenuItem Header="关于(_A)..." Command="{Binding ShowAboutCommand}"/>
+            </MenuItem>
+        </Menu>
+
+        <!-- 快捷工具栏 -->
+        <ToolBarTray DockPanel.Dock="Top">
+            <ToolBar>
+                <Button Command="{Binding NewCommand}" ToolTip="新建 (Ctrl+N)">新建</Button>
+                <Button Command="{Binding OpenCommand}" ToolTip="打开 (Ctrl+O)">打开</Button>
+                <Button Command="{Binding SaveCommand}" ToolTip="保存 (Ctrl+S)">保存</Button>
+                <Separator/>
+                <Button Command="{Binding RecomputeCommand}" ToolTip="重新计算 (F5)">计算</Button>
+                <Separator/>
+                <Button Command="{Binding ShowTable3ACommand}" ToolTip="表三甲">表三甲</Button>
+                <Button Command="{Binding ShowTable2Command}" ToolTip="表二">表二</Button>
+                <Button Command="{Binding ShowTable5Command}" ToolTip="表五甲">表五</Button>
+                <Button Command="{Binding ShowSummaryCommand}" ToolTip="汇总表">汇总</Button>
+            </ToolBar>
+        </ToolBarTray>
+
+        <!-- 底部状态栏 -->
+        <StatusBar DockPanel.Dock="Bottom">
+            <StatusBarItem>
+                <TextBlock Text="{Binding StatusMessage}"/>
+            </StatusBarItem>
+            <Separator/>
+            <StatusBarItem>
+                <TextBlock Text="{Binding ProjectPath, StringFormat='工程：{0}'}"/>
+            </StatusBarItem>
+            <Separator/>
+            <StatusBarItem>
+                <TextBlock Text="{Binding DirtyMarker, StringFormat='状态：{0}'}"/>
+            </StatusBarItem>
+            <Separator/>
+            <StatusBarItem HorizontalAlignment="Right">
+                <ProgressBar Width="100" Height="14" IsIndeterminate="{Binding IsBusy}"
+                             Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}"/>
+            </StatusBarItem>
+        </StatusBar>
+
+        <!-- 主体：左侧导航 + 页签区 -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="180"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <ListBox Grid.Column="0" Name="NavList"
+                     ItemsSource="{Binding Navigation}"
+                     SelectedItem="{Binding SelectedNav}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Title}" Padding="4"/>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <TabControl Grid.Column="1" Name="WorkbenchTabs"
+                        ItemsSource="{Binding OpenTabs}"
+                        SelectedItem="{Binding SelectedTab}">
+                <TabControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Title}" VerticalAlignment="Center"/>
+                            <Button Content="×" Margin="6,0,0,0" Padding="2,0"
+                                    Command="{Binding DataContext.CloseTabCommand,
+                                              RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CommandParameter="{Binding}"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </TabControl.ItemTemplate>
+            </TabControl>
+        </Grid>
+    </DockPanel>
+</Window>
