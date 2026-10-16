@@ -89,19 +89,30 @@ jobs:
         run: |
           mkdir -p ./publish/TxBudget.app/Contents/MacOS
           cp -R ./publish/osx-arm64/* ./publish/TxBudget.app/Contents/MacOS/
+          chmod +x ./publish/TxBudget.app/Contents/MacOS/TxBudget.App
           echo '<?xml version="1.0" encoding="UTF-8"?>' > ./publish/TxBudget.app/Contents/Info.plist
           echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> ./publish/TxBudget.app/Contents/Info.plist
           echo '<plist version="1.0"><dict>' >> ./publish/TxBudget.app/Contents/Info.plist
           echo '<key>CFBundleExecutable</key><string>TxBudget.App</string>' >> ./publish/TxBudget.app/Contents/Info.plist
           echo '<key>CFBundleIdentifier</key><string>com.txbudget.app</string>' >> ./publish/TxBudget.app/Contents/Info.plist
           echo '<key>CFBundleName</key><string>TxBudget</string>' >> ./publish/TxBudget.app/Contents/Info.plist
+          echo '<key>CFBundleDisplayName</key><string>TxBudget</string>' >> ./publish/TxBudget.app/Contents/Info.plist
+          echo '<key>CFBundlePackageType</key><string>APPL</string>' >> ./publish/TxBudget.app/Contents/Info.plist
           echo '<key>CFBundleVersion</key><string>4.0.0</string>' >> ./publish/TxBudget.app/Contents/Info.plist
+          echo '<key>CFBundleShortVersionString</key><string>4.0.0</string>' >> ./publish/TxBudget.app/Contents/Info.plist
+          echo '<key>LSMinimumSystemVersion</key><string>11.0</string>' >> ./publish/TxBudget.app/Contents/Info.plist
+          echo '<key>NSHighResolutionCapable</key><true/>' >> ./publish/TxBudget.app/Contents/Info.plist
           echo '</dict></plist>' >> ./publish/TxBudget.app/Contents/Info.plist
+          plutil -lint ./publish/TxBudget.app/Contents/Info.plist
+      - name: Zip .app preserving permissions
+        run: |
+          cd ./publish
+          ditto -c -k --sequesterRsrc --keepParent TxBudget.app TxBudget-macOS-arm64.app.zip
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: TxBudget-macOS-arm64
-          path: ./publish/TxBudget.app
+          path: ./publish/TxBudget-macOS-arm64.app.zip
 
   build-windows:
     name: Windows Avalonia compile check
