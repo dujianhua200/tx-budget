@@ -5,7 +5,7 @@ name: Build v4 Avalonia
 
 on:
   push:
-    branches: [v4-avalonia, main]
+    branches: [v4-avalonia, main, v4-build-test]
   pull_request:
     branches: [v4-avalonia, main]
   workflow_dispatch:
