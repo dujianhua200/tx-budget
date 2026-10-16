@@ -1,6 +1,9 @@
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using TxBudget.Core.Infrastructure;
 using TxBudget.Core.Model;
 
 namespace TxBudget.App.Infrastructure;
@@ -12,9 +15,30 @@ public static class BackupService
 {
     private const int MaxBackups = 5;
 
-    public static string BackupDirectory => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "TxBudget", "Backups");
+    public static string BackupDirectory
+    {
+        get
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                return Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    "Library", "Application Support", "TxBudget", "backup");
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                return Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "TxBudget", "backup");
+            }
+            else // Linux and others
+            {
+                return Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    ".local", "share", "TxBudget", "backup");
+            }
+        }
+    }
 
     public static void EnsureBackupDirectory()
     {
@@ -29,19 +53,29 @@ public static class BackupService
     /// </summary>
     public static void Backup(string projectFilePath)
     {
-        if (string.IsNullOrEmpty(projectFilePath) || !File.Exists(projectFilePath)) return;
-        EnsureBackupDirectory();
-        var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-        var backupPath = Path.Combine(BackupDirectory, $"{Path.GetFileName(projectFilePath)}.{stamp}.bak");
-        File.Copy(projectFilePath, backupPath, overwrite: true);
-
-        // 只保留最近 5 份
-        var dir = new DirectoryInfo(BackupDirectory);
-        var sameBase = dir.GetFiles($"{Path.GetFileName(projectFilePath)}.*.bak");
-        Array.Sort(sameBase, (a, b) => b.CreationTime.CompareTo(a.CreationTime));
-        for (int i = MaxBackups; i < sameBase.Length; i++)
+        try
         {
-            try { sameBase[i].Delete(); } catch { /* ignore */ }
+            if (string.IsNullOrEmpty(projectFilePath) || !File.Exists(projectFilePath)) return;
+
+            SafeFilePath.ValidateForRead(projectFilePath);
+            EnsureBackupDirectory();
+            var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            var backupPath = Path.Combine(BackupDirectory, $"{Path.GetFileName(projectFilePath)}.{stamp}.bak");
+            SafeFilePath.ValidateForWrite(backupPath);
+            File.Copy(projectFilePath, backupPath, overwrite: true);
+
+            // 只保留最近 5 份
+            var dir = new DirectoryInfo(BackupDirectory);
+            var sameBase = dir.GetFiles($"{Path.GetFileName(projectFilePath)}.*.bak");
+            Array.Sort(sameBase, (a, b) => b.CreationTime.CompareTo(a.CreationTime));
+            for (int i = MaxBackups; i < sameBase.Length; i++)
+            {
+                try { sameBase[i].Delete(); } catch { /* ignore */ }
+            }
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"备份失败: {ex.Message}", ex);
         }
     }
 }
@@ -54,12 +88,12 @@ public static class BudgetDatabaseIO
     private static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented = true,
-        PropertyNameHandling = JsonPropertyNameHandling.SimplifyChineseNames,
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
     public static Project? Load(string path)
     {
+        SafeFilePath.ValidateForRead(path);
         if (!File.Exists(path)) return null;
         var json = File.ReadAllText(path);
         return JsonSerializer.Deserialize<Project>(json, Options);
@@ -67,17 +101,9 @@ public static class BudgetDatabaseIO
 
     public static void Save(Project project, string path)
     {
-        var json = JsonSerializer.Serialize(project, Options);
+        SafeFilePath.ValidateForWrite(path);
         var dir = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-        File.WriteAllText(path, json);
+        File.WriteAllText(path, JsonSerializer.Serialize(project, Options));
     }
-}
-
-/// <summary>
-/// Json 简化的属性名策略：与种子文件保持中文字段一致。
-/// </summary>
-public static class JsonPropertyNameHandling
-{
-    public const string SimplifyChineseNames = "Chinese";
 }

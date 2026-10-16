@@ -1,6 +1,7 @@
 using ClosedXML.Excel;
 using TxBudget.Batch.Models;
 using TxBudget.Core.Engine;
+using TxBudget.Core.Infrastructure;
 
 namespace TxBudget.Batch;
 
@@ -9,11 +10,15 @@ namespace TxBudget.Batch;
 /// </summary>
 public class BatchExporter
 {
+    private static readonly string[] AllowedOutputExts = { ".xlsx", ".xls" };
+
     /// <summary>
     /// 导出批量生成结果为汇总 Excel（每个项目一个工作表 + 汇总表）。
     /// </summary>
     public void ExportToExcel(BatchGenerateResult result, string outputPath)
     {
+        SafeFilePath.ValidateForWrite(outputPath, allowedExtensions: AllowedOutputExts);
+        SafeFilePath.EnsureDirectory(outputPath);
         using var workbook = new XLWorkbook();
 
         // 汇总表

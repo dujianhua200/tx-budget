@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using TxBudget.App.Workbench.Infrastructure;
 
 namespace TxBudget.App.Workbench.ViewModels;
 
@@ -11,9 +12,9 @@ public abstract class WorkbenchTabViewModel : INotifyPropertyChanged
 {
     public string Title { get; protected set; } = "";
 
-    private ViewModels.MainWindowViewModel? _host;
+    private IMainWindowHost? _host;
 
-    public void Attach(ViewModels.MainWindowViewModel host)
+    public void Attach(IMainWindowHost host)
     {
         if (_host != null)
         {
@@ -26,7 +27,7 @@ public abstract class WorkbenchTabViewModel : INotifyPropertyChanged
         Refresh();
     }
 
-    protected ViewModels.MainWindowViewModel? Host => _host;
+    protected IMainWindowHost? Host => _host;
 
     /// <summary>主窗口工程或路径变化时调用。</summary>
     public virtual void Refresh()
@@ -38,8 +39,8 @@ public abstract class WorkbenchTabViewModel : INotifyPropertyChanged
 
     protected virtual void OnHostPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(ViewModels.MainWindowViewModel.CurrentProject)
-            || e.PropertyName == nameof(ViewModels.MainWindowViewModel.ProjectPath))
+        if (e.PropertyName == nameof(IMainWindowHost.CurrentProject)
+            || e.PropertyName == nameof(IMainWindowHost.ProjectPath))
         {
             Refresh();
         }
@@ -50,5 +51,5 @@ public abstract class WorkbenchTabViewModel : INotifyPropertyChanged
     protected void OnPropertyChanged([CallerMemberName] string? name = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name ?? ""));
 
-    protected void MarkDirty() => _host?.MarkDirty();
+    public void MarkDirty() => _host?.MarkDirty();
 }

@@ -145,4 +145,31 @@ public class BatchProjectGeneratorTests
         Assert.Equal(2, result.SuccessCount);
         Assert.Equal(0, result.FailCount);
     }
+
+    [Fact]
+    public void GenerateAll_LargeBatch_ParallelProducesAllResults()
+    {
+        var libs = CreateMinimalLibs();
+        var gen = new BatchProjectGenerator(libs);
+        var tables = new List<WorkloadTable>();
+        for (int i = 0; i < 120; i++)
+        {
+            tables.Add(new WorkloadTable
+            {
+                SheetName = $"Project{i}",
+                Rows = new() { new() { QuotaCode = "TXL3-187", Quantity = 1m } }
+            });
+        }
+
+        var result = gen.GenerateAll(tables);
+
+        Assert.Equal(120, result.Projects.Count);
+        Assert.Equal(120, result.SuccessCount);
+        Assert.Equal(0, result.FailCount);
+        // 验证顺序：结果应按输入顺序排列
+        for (int i = 0; i < 120; i++)
+        {
+            Assert.Equal($"Project{i}", result.Projects[i].ProjectName);
+        }
+    }
 }

@@ -1,5 +1,6 @@
 using ClosedXML.Excel;
 using TxBudget.Core.Engine;
+using TxBudget.Core.Infrastructure;
 
 namespace TxBudget.Export;
 
@@ -8,11 +9,15 @@ namespace TxBudget.Export;
 /// </summary>
 public class ExcelProjectExporter
 {
+    private static readonly string[] AllowedOutputExts = { ".xlsx", ".xls" };
+
     /// <summary>
     /// 导出指定报表到 Excel 文件。
     /// </summary>
     public void Export(string outputPath, CalcResult result, IEnumerable<string> reportKeys)
     {
+        SafeFilePath.ValidateForWrite(outputPath, allowedExtensions: AllowedOutputExts);
+        SafeFilePath.EnsureDirectory(outputPath);
         using var workbook = new XLWorkbook();
         foreach (var key in reportKeys)
         {

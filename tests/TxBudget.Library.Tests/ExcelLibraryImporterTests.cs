@@ -120,4 +120,15 @@ public class ExcelLibraryImporterTests : IDisposable
         Assert.Equal(2.5m, mgr.Materials[0].PriceExcl);
         Assert.Equal("甲供", mgr.Materials[0].Supply);
     }
+
+    [Theory]
+    [InlineData("../escape.xlsx")]
+    [InlineData("test.txt")]
+    [InlineData("")]
+    public void Import_InvalidPath_ThrowsArgumentException(string badPath)
+    {
+        var mgr = new LibraryManager();
+        var importer = new ExcelLibraryImporter();
+        Assert.Throws<ArgumentException>(() => importer.Import(badPath, mgr));
+    }
 }

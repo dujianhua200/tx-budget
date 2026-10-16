@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using TxBudget.Batch.Models;
 using TxBudget.Core.Engine;
 using TxBudget.Core.Model;
@@ -102,14 +103,46 @@ public class BatchProjectGenerator
 
     /// <summary>
     /// 批量生成：多张工作量表 → 多个计算结果。
+    /// 当表数量 > 100 时采用分批并行（每批 100 个），避免内存峰值过高。
     /// </summary>
     public BatchGenerateResult GenerateAll(List<WorkloadTable> tables, ProjectInfo? templateInfo = null)
     {
         var overall = new BatchGenerateResult();
-        foreach (var table in tables)
+        if (tables == null || tables.Count == 0)
+            return overall;
+
+        const int parallelThreshold = 100;
+        const int batchSize = 100;
+
+        if (tables.Count <= parallelThreshold)
         {
-            overall.Projects.Add(Generate(table, templateInfo));
+            // 小批量：直接并行
+            var results = new ConcurrentBag<(int Index, BatchProjectResult Result)>();
+            Parallel.ForEach(tables.Select((t, i) => (Index: i, Table: t)), pair =>
+            {
+                var result = Generate(pair.Table, templateInfo);
+                results.Add((pair.Index, result));
+            });
+            var ordered = results.OrderBy(r => r.Index).Select(r => r.Result).ToList();
+            overall.Projects.AddRange(ordered);
         }
+        else
+        {
+            // 大批量：分批并行，控制内存
+            for (int i = 0; i < tables.Count; i += batchSize)
+            {
+                var batch = tables.Skip(i).Take(batchSize).Select((t, idx) => (Index: i + idx, Table: t)).ToList();
+                var results = new ConcurrentBag<(int Index, BatchProjectResult Result)>();
+                Parallel.ForEach(batch, pair =>
+                {
+                    var result = Generate(pair.Table, templateInfo);
+                    results.Add((pair.Index, result));
+                });
+                var ordered = results.OrderBy(r => r.Index).Select(r => r.Result).ToList();
+                overall.Projects.AddRange(ordered);
+            }
+        }
+
         return overall;
     }
 }

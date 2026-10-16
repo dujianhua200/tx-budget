@@ -81,34 +81,30 @@ jobs:
       - name: Build Core (osx-arm64)
         run: dotnet build src/TxBudget.Core/TxBudget.Core.csproj -c Release --no-restore -r osx-arm64 --self-contained false -v minimal
 
-      # Avalonia UI 迁移完成后取消注释以下步骤
-      # - name: Restore Avalonia App
-      #   run: dotnet restore src/TxBudget.App/TxBudget.App.csproj
-      # - name: Publish Avalonia App (osx-arm64)
-      #   run: dotnet publish src/TxBudget.App/TxBudget.App.csproj -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true -o ./publish/osx-arm64
-      # - name: Package .app
-      #   run: |
-      #     mkdir -p ./publish/TxBudget.app/Contents/MacOS
-      #     cp -R ./publish/osx-arm64/* ./publish/TxBudget.app/Contents/MacOS/
-      #     echo '<?xml version="1.0" encoding="UTF-8"?>' > ./publish/TxBudget.app/Contents/Info.plist
-      #     echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> ./publish/TxBudget.app/Contents/Info.plist
-      #     echo '<plist version="1.0"><dict>' >> ./publish/TxBudget.app/Contents/Info.plist
-      #     echo '<key>CFBundleExecutable</key><string>TxBudget.App</string>' >> ./publish/TxBudget.app/Contents/Info.plist
-      #     echo '<key>CFBundleIdentifier</key><string>com.txbudget.app</string>' >> ./publish/TxBudget.app/Contents/Info.plist
-      #     echo '<key>CFBundleName</key><string>TxBudget</string>' >> ./publish/TxBudget.app/Contents/Info.plist
-      #     echo '<key>CFBundleVersion</key><string>4.0.0</string>' >> ./publish/TxBudget.app/Contents/Info.plist
-      #     echo '</dict></plist>' >> ./publish/TxBudget.app/Contents/Info.plist
-      # - name: Upload macOS artifact
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: TxBudget-macOS-arm64
-      #     path: ./publish/TxBudget.app
-
-      - name: Placeholder - macOS UI pending Avalonia migration
-        run: echo "macOS .app 打包将在 Avalonia UI 迁移完成后启用。当前仅验证 Core 库可在 osx-arm64 编译。"
+      - name: Restore Avalonia App
+        run: dotnet restore src/TxBudget.App/TxBudget.App.csproj
+      - name: Publish Avalonia App (osx-arm64)
+        run: dotnet publish src/TxBudget.App/TxBudget.App.csproj -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true -o ./publish/osx-arm64
+      - name: Package .app
+        run: |
+          mkdir -p ./publish/TxBudget.app/Contents/MacOS
+          cp -R ./publish/osx-arm64/* ./publish/TxBudget.app/Contents/MacOS/
+          echo '<?xml version="1.0" encoding="UTF-8"?>' > ./publish/TxBudget.app/Contents/Info.plist
+          echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> ./publish/TxBudget.app/Contents/Info.plist
+          echo '<plist version="1.0"><dict>' >> ./publish/TxBudget.app/Contents/Info.plist
+          echo '<key>CFBundleExecutable</key><string>TxBudget.App</string>' >> ./publish/TxBudget.app/Contents/Info.plist
+          echo '<key>CFBundleIdentifier</key><string>com.txbudget.app</string>' >> ./publish/TxBudget.app/Contents/Info.plist
+          echo '<key>CFBundleName</key><string>TxBudget</string>' >> ./publish/TxBudget.app/Contents/Info.plist
+          echo '<key>CFBundleVersion</key><string>4.0.0</string>' >> ./publish/TxBudget.app/Contents/Info.plist
+          echo '</dict></plist>' >> ./publish/TxBudget.app/Contents/Info.plist
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TxBudget-macOS-arm64
+          path: ./publish/TxBudget.app
 
   build-windows:
-    name: Windows WPF compile check (legacy, pending Avalonia)
+    name: Windows Avalonia compile check
     runs-on: windows-latest
     needs: test-cross-platform
     steps:
@@ -126,12 +122,12 @@ jobs:
       - name: Build Workbench
         run: dotnet build src/TxBudget.App.Workbench/TxBudget.App.Workbench.csproj -c Release --no-restore -v minimal
 
-      - name: Build WPF App
+      - name: Build Avalonia App
         run: dotnet build src/TxBudget.App/TxBudget.App.csproj -c Release --no-restore -v minimal
 
       - name: Verify App.exe exists
         shell: pwsh
         run: |
-          $exe = Get-ChildItem src/TxBudget.App/bin/Release/net8.0-windows/TxBudget.App.exe | Select-Object -First 1
+          $exe = Get-ChildItem src/TxBudget.App/bin/Release/net8.0/TxBudget.App.exe | Select-Object -First 1
           if (-not $exe) { throw "TxBudget.App.exe 未产出" }
-          Write-Output "WPF 编译产物: $($exe.FullName) $($exe.Length) bytes"
+          Write-Output "Avalonia 编译产物: $($exe.FullName) $($exe.Length) bytes"

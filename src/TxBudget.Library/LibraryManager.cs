@@ -11,6 +11,15 @@ public class LibraryManager
 {
     private LibrarySet _libs;
 
+    // === 索引字典：确保 O(1) 查询 ===
+    private Dictionary<string, Quota> _quotaIndex = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<(string Name, string Spec), Material> _materialIndex = new();
+    private Dictionary<string, MaterialRule> _ruleIndex = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, MachinePrice> _machinePriceIndex = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, MachinePrice> _instrumentPriceIndex = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, QuotaMachine> _quotaMachineIndex = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, QuotaMachine> _quotaInstrumentIndex = new(StringComparer.OrdinalIgnoreCase);
+
     public LibraryManager(LibrarySet? initial = null)
     {
         _libs = initial ?? new LibrarySet
@@ -28,19 +37,58 @@ public class LibraryManager
             Table5Fees = new(),
             Dispatch = Dispatch.Default(),
         };
+        RebuildIndexes();
     }
 
     public LibrarySet Libraries => _libs;
 
+    /// <summary>
+    /// 重建所有索引。在批量加载或替换后调用。
+    /// </summary>
+    public void RebuildIndexes()
+    {
+        _quotaIndex = _libs.Quotas?.ToDictionary(q => q.Code, q => q, StringComparer.OrdinalIgnoreCase)
+            ?? new Dictionary<string, Quota>(StringComparer.OrdinalIgnoreCase);
+
+        _materialIndex = _libs.Materials?.ToDictionary(
+            m => (m.Name ?? "", m.Spec ?? ""),
+            m => m) ?? new Dictionary<(string, string), Material>();
+
+        _ruleIndex = _libs.Rules?.ToDictionary(r => r.Id ?? "", r => r, StringComparer.OrdinalIgnoreCase)
+            ?? new Dictionary<string, MaterialRule>(StringComparer.OrdinalIgnoreCase);
+
+        _machinePriceIndex = _libs.MachinePrices?.ToDictionary(m => m.Code, m => m, StringComparer.OrdinalIgnoreCase)
+            ?? new Dictionary<string, MachinePrice>(StringComparer.OrdinalIgnoreCase);
+
+        _instrumentPriceIndex = _libs.InstrumentPrices?.ToDictionary(m => m.Code, m => m, StringComparer.OrdinalIgnoreCase)
+            ?? new Dictionary<string, MachinePrice>(StringComparer.OrdinalIgnoreCase);
+
+        _quotaMachineIndex = _libs.QuotaMachines?.ToDictionary(m => m.Id ?? "", m => m, StringComparer.OrdinalIgnoreCase)
+            ?? new Dictionary<string, QuotaMachine>(StringComparer.OrdinalIgnoreCase);
+
+        _quotaInstrumentIndex = _libs.QuotaInstruments?.ToDictionary(m => m.Id ?? "", m => m, StringComparer.OrdinalIgnoreCase)
+            ?? new Dictionary<string, QuotaMachine>(StringComparer.OrdinalIgnoreCase);
+    }
+
     // === Quota 定额 ===
     public IReadOnlyList<Quota> Quotas => _libs.Quotas ?? new List<Quota>();
-    public void AddQuota(Quota item) => (_libs.Quotas ??= new()).Add(item);
-    public bool RemoveQuota(string code) => (_libs.Quotas ??= new()).RemoveAll(q => q.Code == code) > 0;
-    public Quota? FindQuota(string code) => _libs.Quotas?.FirstOrDefault(q => q.Code == code);
+    public void AddQuota(Quota item)
+    {
+        (_libs.Quotas ??= new()).Add(item);
+        _quotaIndex[item.Code] = item;
+    }
+    public bool RemoveQuota(string code)
+    {
+        var removed = _quotaIndex.Remove(code);
+        if (removed && _libs.Quotas != null)
+            _libs.Quotas.RemoveAll(q => q.Code.Equals(code, StringComparison.OrdinalIgnoreCase));
+        return removed;
+    }
+    public Quota? FindQuota(string code) => _quotaIndex.TryGetValue(code, out var q) ? q : null;
+    public bool ContainsQuota(string code) => _quotaIndex.ContainsKey(code);
     public void UpdateQuota(Quota item)
     {
-        var existing = FindQuota(item.Code);
-        if (existing != null)
+        if (_quotaIndex.TryGetValue(item.Code, out var existing))
         {
             existing.Name = item.Name;
             existing.Unit = item.Unit;
@@ -54,15 +102,25 @@ public class LibraryManager
 
     // === Material 材料 ===
     public IReadOnlyList<Material> Materials => _libs.Materials ?? new List<Material>();
-    public void AddMaterial(Material item) => (_libs.Materials ??= new()).Add(item);
-    public bool RemoveMaterial(string name, string spec) =>
-        (_libs.Materials ??= new()).RemoveAll(m => m.Name == name && m.Spec == spec) > 0;
-    public Material? FindMaterial(string name, string spec) =>
-        _libs.Materials?.FirstOrDefault(m => m.Name == name && m.Spec == spec);
+    public void AddMaterial(Material item)
+    {
+        (_libs.Materials ??= new()).Add(item);
+        _materialIndex[(item.Name ?? "", item.Spec ?? "")] = item;
+    }
+    public bool RemoveMaterial(string name, string spec)
+    {
+        var key = (name, spec);
+        var removed = _materialIndex.Remove(key);
+        if (removed && _libs.Materials != null)
+            _libs.Materials.RemoveAll(m => m.Name == name && m.Spec == spec);
+        return removed;
+    }
+    public Material? FindMaterial(string name, string spec) => _materialIndex.TryGetValue((name, spec), out var m) ? m : null;
+    public bool ContainsMaterial(string name, string spec) => _materialIndex.ContainsKey((name, spec));
     public void UpdateMaterial(Material item)
     {
-        var existing = FindMaterial(item.Name, item.Spec);
-        if (existing != null)
+        var key = (item.Name, item.Spec);
+        if (_materialIndex.TryGetValue(key, out var existing))
         {
             existing.Unit = item.Unit;
             existing.PriceExcl = item.PriceExcl;
@@ -72,13 +130,23 @@ public class LibraryManager
 
     // === MaterialRule 材料规则 ===
     public IReadOnlyList<MaterialRule> Rules => _libs.Rules ?? new List<MaterialRule>();
-    public void AddRule(MaterialRule item) => (_libs.Rules ??= new()).Add(item);
-    public bool RemoveRule(string id) => (_libs.Rules ??= new()).RemoveAll(r => r.Id == id) > 0;
-    public MaterialRule? FindRule(string id) => _libs.Rules?.FirstOrDefault(r => r.Id == id);
+    public void AddRule(MaterialRule item)
+    {
+        (_libs.Rules ??= new()).Add(item);
+        _ruleIndex[item.Id ?? ""] = item;
+    }
+    public bool RemoveRule(string id)
+    {
+        var removed = _ruleIndex.Remove(id);
+        if (removed && _libs.Rules != null)
+            _libs.Rules.RemoveAll(r => r.Id == id);
+        return removed;
+    }
+    public MaterialRule? FindRule(string id) => _ruleIndex.TryGetValue(id, out var r) ? r : null;
+    public bool ContainsRule(string id) => _ruleIndex.ContainsKey(id);
     public void UpdateRule(MaterialRule item)
     {
-        var existing = FindRule(item.Id ?? "");
-        if (existing != null)
+        if (_ruleIndex.TryGetValue(item.Id ?? "", out var existing))
         {
             existing.Quota = item.Quota;
             existing.Material = item.Material;
@@ -92,13 +160,23 @@ public class LibraryManager
 
     // === MachinePrice 机械价格 ===
     public IReadOnlyList<MachinePrice> MachinePrices => _libs.MachinePrices ?? new List<MachinePrice>();
-    public void AddMachinePrice(MachinePrice item) => (_libs.MachinePrices ??= new()).Add(item);
-    public bool RemoveMachinePrice(string code) => (_libs.MachinePrices ??= new()).RemoveAll(m => m.Code == code) > 0;
-    public MachinePrice? FindMachinePrice(string code) => _libs.MachinePrices?.FirstOrDefault(m => m.Code == code);
+    public void AddMachinePrice(MachinePrice item)
+    {
+        (_libs.MachinePrices ??= new()).Add(item);
+        _machinePriceIndex[item.Code] = item;
+    }
+    public bool RemoveMachinePrice(string code)
+    {
+        var removed = _machinePriceIndex.Remove(code);
+        if (removed && _libs.MachinePrices != null)
+            _libs.MachinePrices.RemoveAll(m => m.Code == code);
+        return removed;
+    }
+    public MachinePrice? FindMachinePrice(string code) => _machinePriceIndex.TryGetValue(code, out var m) ? m : null;
+    public bool ContainsMachinePrice(string code) => _machinePriceIndex.ContainsKey(code);
     public void UpdateMachinePrice(MachinePrice item)
     {
-        var existing = FindMachinePrice(item.Code);
-        if (existing != null)
+        if (_machinePriceIndex.TryGetValue(item.Code, out var existing))
         {
             existing.Name = item.Name;
             existing.Price = item.Price;
@@ -107,13 +185,23 @@ public class LibraryManager
 
     // === InstrumentPrice 仪表价格 ===
     public IReadOnlyList<MachinePrice> InstrumentPrices => _libs.InstrumentPrices ?? new List<MachinePrice>();
-    public void AddInstrumentPrice(MachinePrice item) => (_libs.InstrumentPrices ??= new()).Add(item);
-    public bool RemoveInstrumentPrice(string code) => (_libs.InstrumentPrices ??= new()).RemoveAll(m => m.Code == code) > 0;
-    public MachinePrice? FindInstrumentPrice(string code) => _libs.InstrumentPrices?.FirstOrDefault(m => m.Code == code);
+    public void AddInstrumentPrice(MachinePrice item)
+    {
+        (_libs.InstrumentPrices ??= new()).Add(item);
+        _instrumentPriceIndex[item.Code] = item;
+    }
+    public bool RemoveInstrumentPrice(string code)
+    {
+        var removed = _instrumentPriceIndex.Remove(code);
+        if (removed && _libs.InstrumentPrices != null)
+            _libs.InstrumentPrices.RemoveAll(m => m.Code == code);
+        return removed;
+    }
+    public MachinePrice? FindInstrumentPrice(string code) => _instrumentPriceIndex.TryGetValue(code, out var m) ? m : null;
+    public bool ContainsInstrumentPrice(string code) => _instrumentPriceIndex.ContainsKey(code);
     public void UpdateInstrumentPrice(MachinePrice item)
     {
-        var existing = FindInstrumentPrice(item.Code);
-        if (existing != null)
+        if (_instrumentPriceIndex.TryGetValue(item.Code, out var existing))
         {
             existing.Name = item.Name;
             existing.Price = item.Price;
@@ -122,15 +210,35 @@ public class LibraryManager
 
     // === QuotaMachine 定额机械 ===
     public IReadOnlyList<QuotaMachine> QuotaMachines => _libs.QuotaMachines ?? new List<QuotaMachine>();
-    public void AddQuotaMachine(QuotaMachine item) => (_libs.QuotaMachines ??= new()).Add(item);
-    public bool RemoveQuotaMachine(string id) => (_libs.QuotaMachines ??= new()).RemoveAll(m => m.Id == id) > 0;
-    public QuotaMachine? FindQuotaMachine(string id) => _libs.QuotaMachines?.FirstOrDefault(m => m.Id == id);
+    public void AddQuotaMachine(QuotaMachine item)
+    {
+        (_libs.QuotaMachines ??= new()).Add(item);
+        _quotaMachineIndex[item.Id ?? ""] = item;
+    }
+    public bool RemoveQuotaMachine(string id)
+    {
+        var removed = _quotaMachineIndex.Remove(id);
+        if (removed && _libs.QuotaMachines != null)
+            _libs.QuotaMachines.RemoveAll(m => m.Id == id);
+        return removed;
+    }
+    public QuotaMachine? FindQuotaMachine(string id) => _quotaMachineIndex.TryGetValue(id, out var m) ? m : null;
 
     // === QuotaInstrument 定额仪表 ===
     public IReadOnlyList<QuotaMachine> QuotaInstruments => _libs.QuotaInstruments ?? new List<QuotaMachine>();
-    public void AddQuotaInstrument(QuotaMachine item) => (_libs.QuotaInstruments ??= new()).Add(item);
-    public bool RemoveQuotaInstrument(string id) => (_libs.QuotaInstruments ??= new()).RemoveAll(m => m.Id == id) > 0;
-    public QuotaMachine? FindQuotaInstrument(string id) => _libs.QuotaInstruments?.FirstOrDefault(m => m.Id == id);
+    public void AddQuotaInstrument(QuotaMachine item)
+    {
+        (_libs.QuotaInstruments ??= new()).Add(item);
+        _quotaInstrumentIndex[item.Id ?? ""] = item;
+    }
+    public bool RemoveQuotaInstrument(string id)
+    {
+        var removed = _quotaInstrumentIndex.Remove(id);
+        if (removed && _libs.QuotaInstruments != null)
+            _libs.QuotaInstruments.RemoveAll(m => m.Id == id);
+        return removed;
+    }
+    public QuotaMachine? FindQuotaInstrument(string id) => _quotaInstrumentIndex.TryGetValue(id, out var m) ? m : null;
 
     // === Rates 费率 ===
     public RatesBlob? Rates => _libs.Rates;
@@ -177,5 +285,6 @@ public class LibraryManager
         _libs.QuotaInstruments?.Clear();
         _libs.Rates?.ByProjectType?.Clear();
         _libs.WinterTable?.Clear();
+        RebuildIndexes();
     }
 }

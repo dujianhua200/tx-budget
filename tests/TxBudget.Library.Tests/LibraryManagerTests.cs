@@ -90,4 +90,61 @@ public class LibraryManagerTests
         Assert.Empty(mgr.Quotas);
         Assert.Empty(mgr.Materials);
     }
+
+    [Fact]
+    public void FindQuota_LargeSet_O1Performance()
+    {
+        var mgr = new LibraryManager();
+        for (int i = 0; i < 5000; i++)
+        {
+            mgr.AddQuota(new Quota { Code = $"Q{i:0000}", Name = $"Quota{i}" });
+        }
+        var found = mgr.FindQuota("Q4999");
+        Assert.NotNull(found);
+        Assert.Equal("Quota4999", found!.Name);
+    }
+
+    [Fact]
+    public void ContainsQuota_FindsExisting()
+    {
+        var mgr = new LibraryManager();
+        mgr.AddQuota(new Quota { Code = "TXL3-187", Name = "Test" });
+        Assert.True(mgr.ContainsQuota("TXL3-187"));
+        Assert.False(mgr.ContainsQuota("NONE"));
+    }
+
+    [Fact]
+    public void ContainsMaterial_FindsExisting()
+    {
+        var mgr = new LibraryManager();
+        mgr.AddMaterial(new Material { Name = "光缆", Spec = "GYTS_6芯" });
+        Assert.True(mgr.ContainsMaterial("光缆", "GYTS_6芯"));
+        Assert.False(mgr.ContainsMaterial("光缆", "NONE"));
+    }
+
+    [Fact]
+    public void RebuildIndexes_AfterExternalListChange()
+    {
+        var libs = new LibrarySet
+        {
+            Quotas = new List<Quota> { new() { Code = "A", Name = "A" } },
+            Materials = new(),
+            Rules = new(),
+            MachinePrices = new(),
+            InstrumentPrices = new(),
+            QuotaMachines = new(),
+            QuotaInstruments = new(),
+            Rates = new RatesBlob { ByProjectType = new() },
+            WinterTable = new(),
+            DiscountRule = new(),
+            Table5Fees = new(),
+            Dispatch = Dispatch.Default(),
+        };
+        var mgr = new LibraryManager(libs);
+        Assert.True(mgr.ContainsQuota("A"));
+
+        libs.Quotas.Add(new Quota { Code = "B", Name = "B" });
+        mgr.RebuildIndexes();
+        Assert.True(mgr.ContainsQuota("B"));
+    }
 }

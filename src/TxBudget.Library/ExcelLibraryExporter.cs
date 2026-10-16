@@ -1,5 +1,6 @@
 using ClosedXML.Excel;
 using TxBudget.Core.Engine;
+using TxBudget.Core.Infrastructure;
 using TxBudget.Core.Model;
 
 namespace TxBudget.Library;
@@ -9,8 +10,12 @@ namespace TxBudget.Library;
 /// </summary>
 public class ExcelLibraryExporter
 {
+    private static readonly string[] AllowedOutputExts = { ".xlsx", ".xls" };
+
     public void Export(string outputPath, LibraryManager manager)
     {
+        SafeFilePath.ValidateForWrite(outputPath, allowedExtensions: AllowedOutputExts);
+        SafeFilePath.EnsureDirectory(outputPath);
         using var workbook = new XLWorkbook();
 
         ExportQuotas(workbook, manager.Quotas);

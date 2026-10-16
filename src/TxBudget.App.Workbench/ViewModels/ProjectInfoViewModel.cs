@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Linq;
 using TxBudget.Core.Model;
 
 namespace TxBudget.App.Workbench.ViewModels;
@@ -53,7 +54,7 @@ public class ProjectInfoViewModel : WorkbenchTabViewModel
     public string? 工程类型
     {
         get => Host?.CurrentProject?.Info?.工程类型;
-        set { if (Host?.CurrentProject?.Info != null) { Host.CurrentProject.Info.工程类型 = value; MarkDirty(); Refresh(); }
+        set { if (Host?.CurrentProject?.Info != null) { Host.CurrentProject.Info.工程类型 = value; MarkDirty(); Refresh(); } }
     }
 
     public System.Collections.Generic.IList<string> 工程类型Options { get; } =

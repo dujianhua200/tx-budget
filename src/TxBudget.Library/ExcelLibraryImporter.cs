@@ -1,5 +1,6 @@
 using ClosedXML.Excel;
 using TxBudget.Core.Engine;
+using TxBudget.Core.Infrastructure;
 using TxBudget.Core.Model;
 
 namespace TxBudget.Library;
@@ -10,6 +11,8 @@ namespace TxBudget.Library;
 public class ExcelLibraryImporter
 {
     public enum ImportMode { Merge, Replace }
+
+    private static readonly string[] AllowedImportExts = { ".xlsx", ".xls" };
 
     /// <summary>
     /// 从 Excel 文件导入全部库数据。
@@ -25,6 +28,7 @@ public class ExcelLibraryImporter
     /// </summary>
     public void Import(string filePath, LibraryManager manager, ImportMode mode = ImportMode.Merge)
     {
+        SafeFilePath.ValidateForRead(filePath, allowedExtensions: AllowedImportExts);
         using var workbook = new XLWorkbook(filePath);
 
         if (mode == ImportMode.Replace)

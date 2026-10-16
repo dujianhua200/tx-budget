@@ -1,9 +1,19 @@
+using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using System.Windows.Input;
-using Microsoft.Win32;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Platform.Storage;
+using MsBox.Avalonia;
+using MsBox.Avalonia.Enums;
 using TxBudget.App.Infrastructure;
+using TxBudget.App.Workbench.Infrastructure;
 using TxBudget.App.Workbench.ViewModels;
 using TxBudget.Core.Model;
 
@@ -12,7 +22,7 @@ namespace TxBudget.App.ViewModels;
 /// <summary>
 /// 主窗口 ViewModel：菜单 / 工具栏命令 + 工程管理 + 自动备份协调。
 /// </summary>
-public class MainWindowViewModel : INotifyPropertyChanged
+public class MainWindowViewModel : IMainWindowHost, INotifyPropertyChanged
 {
     public ObservableCollection<NavItem> Navigation { get; } = new();
     public ObservableCollection<WorkbenchTabViewModel> OpenTabs { get; } = new();
@@ -59,11 +69,15 @@ public class MainWindowViewModel : INotifyPropertyChanged
         Navigation.Add(new NavItem("汇总表", () => OpenTab(new SummaryViewModel())));
 
         NewCommand = new RelayCommand(_ => New());
-        OpenCommand = new RelayCommand(_ => Open());
+        OpenCommand = new RelayCommand(async _ => await OpenAsync());
         SaveCommand = new RelayCommand(_ => Save(), _ => !string.IsNullOrEmpty(ProjectPath));
-        SaveAsCommand = new RelayCommand(_ => SaveAs());
+        SaveAsCommand = new RelayCommand(async _ => await SaveAsAsync());
         CloseProjectCommand = new RelayCommand(_ => CloseProject(), _ => !string.IsNullOrEmpty(ProjectPath));
-        ExitCommand = new RelayCommand(_ => System.Windows.Application.Current.Shutdown());
+        ExitCommand = new RelayCommand(_ =>
+        {
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
+                lifetime.Shutdown();
+        });
 
         UndoCommand = new RelayCommand(_ => StatusMessage = "撤销（待实现）");
         RedoCommand = new RelayCommand(_ => StatusMessage = "重做（待实现）");
@@ -85,9 +99,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
         ShowRatesCommand = new RelayCommand(_ => StatusMessage = "费率编辑（待实现）");
         ShowDiscountCommand = new RelayCommand(_ => StatusMessage = "打折规则（待实现）");
         ShowTable5ConfigCommand = new RelayCommand(_ => StatusMessage = "表五配置（待实现）");
-        ShowAboutCommand = new RelayCommand(_ =>
-            System.Windows.MessageBox.Show("宇翔通信概预算软件 v4.0\n.NET 8 WPF 原生桌面版",
-                "关于", MessageBoxButton.OK, MessageBoxImage.Information));
+        ShowAboutCommand = new RelayCommand(async _ => await ShowAboutAsync());
         CloseTabCommand = new RelayCommand(p => CloseTab(p as WorkbenchTabViewModel));
     }
 
@@ -99,12 +111,6 @@ public class MainWindowViewModel : INotifyPropertyChanged
     }
 
     private LibrarySet? _currentLibs;
-    /// <summary>
-    /// 当前可用定额库 / 标准库 / 材料价格 / 机械台班 数据集。
-    /// 单工程工作台各页签通过 Host.CurrentLibs 取得，用于驱动计算引擎。
-    /// 加载时机：构造完成后或由工程文件携带的依赖项驱动加载；
-    /// 当前阶段由 Batch 模块的另一位同事负责标准库维护，本模块仅提供注入入口。
-    /// </summary>
     public LibrarySet? CurrentLibs
     {
         get => _currentLibs;
@@ -143,6 +149,8 @@ public class MainWindowViewModel : INotifyPropertyChanged
         set { _isBusy = value; OnPropertyChanged(); }
     }
 
+    public bool ForceClose { get; set; }
+
     private NavItem? _selectedNav;
     public NavItem? SelectedNav
     {
@@ -164,7 +172,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
 
     public void New()
     {
-        if (IsDirty && !ConfirmDiscardChanges()) return;
+        if (IsDirty && !ConfirmDiscardChanges().GetAwaiter().GetResult()) return;
         CurrentProject = new Project { Info = new ProjectInfo() };
         ProjectPath = null;
         IsDirty = false;
@@ -172,28 +180,41 @@ public class MainWindowViewModel : INotifyPropertyChanged
         StatusMessage = "新建工程";
     }
 
-    public void Open()
+    public async Task OpenAsync()
     {
-        var dlg = new OpenFileDialog
+        var storage = GetStorageProvider();
+        if (storage == null) return;
+
+        var files = await storage.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "打开工程文件",
-            Filter = "宇翔工程 (*.tbpj)|*.tbpj|JSON (*.json)|*.json|所有文件|*.*",
-        };
-        if (dlg.ShowDialog() != true) return;
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType("宇翔工程") { Patterns = new[] { "*.tbpj" } },
+                new FilePickerFileType("JSON") { Patterns = new[] { "*.json" } },
+                new FilePickerFileType("所有文件") { Patterns = new[] { "*.*" } },
+            }
+        });
+
+        if (files.Count == 0) return;
+        var path = files[0].TryGetLocalPath();
+        if (string.IsNullOrEmpty(path)) return;
+
         try
         {
-            var proj = BudgetDatabaseIO.Load(dlg.FileName);
+            var proj = BudgetDatabaseIO.Load(path);
             if (proj == null)
             {
                 StatusMessage = "打开失败：文件为空或格式错误";
                 return;
             }
             CurrentProject = proj;
-            ProjectPath = dlg.FileName;
+            ProjectPath = path;
             IsDirty = false;
-            StatusMessage = $"已打开 {dlg.FileName}";
+            StatusMessage = $"已打开 {path}";
         }
-        catch (System.Exception ex)
+        catch (Exception ex)
         {
             StatusMessage = $"打开失败：{ex.Message}";
         }
@@ -203,24 +224,37 @@ public class MainWindowViewModel : INotifyPropertyChanged
     {
         if (string.IsNullOrEmpty(ProjectPath))
         {
-            SaveAs();
+            SaveAsync().GetAwaiter().GetResult();
             return;
         }
         SaveCore(ProjectPath);
     }
 
-    public void SaveAs()
+    public async Task SaveAsAsync()
     {
-        var dlg = new SaveFileDialog
+        var storage = GetStorageProvider();
+        if (storage == null) return;
+
+        var file = await storage.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "另存为",
-            Filter = "宇翔工程 (*.tbpj)|*.tbpj|JSON (*.json)|*.json",
-            DefaultExt = ".tbpj",
-        };
-        if (dlg.ShowDialog() != true) return;
-        ProjectPath = dlg.FileName;
-        SaveCore(ProjectPath);
+            DefaultExtension = "tbpj",
+            FileTypeChoices = new[]
+            {
+                new FilePickerFileType("宇翔工程") { Patterns = new[] { "*.tbpj" } },
+                new FilePickerFileType("JSON") { Patterns = new[] { "*.json" } },
+            }
+        });
+
+        if (file == null) return;
+        var path = file.TryGetLocalPath();
+        if (string.IsNullOrEmpty(path)) return;
+
+        ProjectPath = path;
+        SaveCore(path);
     }
+
+    private async Task SaveAsync() => await SaveAsAsync();
 
     private void SaveCore(string path)
     {
@@ -231,7 +265,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
             IsDirty = false;
             StatusMessage = $"已保存 {path}";
         }
-        catch (System.Exception ex)
+        catch (Exception ex)
         {
             StatusMessage = $"保存失败：{ex.Message}";
         }
@@ -239,7 +273,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
 
     public void CloseProject()
     {
-        if (IsDirty && !ConfirmDiscardChanges()) return;
+        if (IsDirty && !ConfirmDiscardChanges().GetAwaiter().GetResult()) return;
         CurrentProject = null;
         ProjectPath = null;
         IsDirty = false;
@@ -254,12 +288,11 @@ public class MainWindowViewModel : INotifyPropertyChanged
             StatusMessage = "没有打开的工程";
             return;
         }
-        // 工作台各 ViewModel 通过订阅 RecomputeRequested 自行刷新
-        RecomputeRequested?.Invoke(this, System.EventArgs.Empty);
+        RecomputeRequested?.Invoke(this, EventArgs.Empty);
         StatusMessage = "已触发重新计算";
     }
 
-    public event System.EventHandler? RecomputeRequested;
+    public event EventHandler? RecomputeRequested;
 
     public void OpenTab(WorkbenchTabViewModel tab)
     {
@@ -280,25 +313,52 @@ public class MainWindowViewModel : INotifyPropertyChanged
         OpenTabs.Remove(tab);
     }
 
-    private bool ConfirmDiscardChanges()
+    private async Task<bool> ConfirmDiscardChanges()
     {
-        var r = System.Windows.MessageBox.Show("当前工程已修改但未保存，确定放弃修改吗？",
-            "确认", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-        return r == MessageBoxResult.Yes;
+        var window = GetMainWindow();
+        if (window == null) return false;
+        var box = MessageBoxManager.GetMessageBoxStandard(
+            "确认", "当前工程已修改但未保存，确定放弃修改吗？",
+            ButtonEnum.YesNo, Icon.Warning);
+        var result = await box.ShowWindowDialogAsync(window);
+        return result == ButtonResult.Yes;
+    }
+
+    public async Task ShowAboutAsync()
+    {
+        var window = GetMainWindow();
+        if (window == null) return;
+        var box = MessageBoxManager.GetMessageBoxStandard(
+            "关于", "宇翔通信概预算软件 v4.0\nAvalonia 跨平台桌面版",
+            ButtonEnum.Ok, Icon.Info);
+        await box.ShowWindowDialogAsync(window);
     }
 
     public void MarkDirty() => IsDirty = true;
 
     private void RaiseButtons()
     {
-        (SaveCommand as RelayCommand)?.CanExecuteChanged?.Invoke(this, System.EventArgs.Empty);
-        (CloseProjectCommand as RelayCommand)?.CanExecuteChanged?.Invoke(this, System.EventArgs.Empty);
+        (SaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (CloseProjectCommand as RelayCommand)?.RaiseCanExecuteChanged();
     }
 
-    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+    private IStorageProvider? GetStorageProvider()
+    {
+        var window = GetMainWindow();
+        return window?.StorageProvider;
+    }
 
-    protected void OnPropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string? name = null) =>
-        PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name ?? ""));
+    private Window? GetMainWindow()
+    {
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
+            return lifetime.MainWindow;
+        return null;
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    protected void OnPropertyChanged([CallerMemberName] string? name = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name ?? ""));
 }
 
 /// <summary>
@@ -307,9 +367,9 @@ public class MainWindowViewModel : INotifyPropertyChanged
 public class NavItem
 {
     public string Title { get; }
-    public System.Action? Action { get; }
+    public Action? Action { get; }
 
-    public NavItem(string title, System.Action? action)
+    public NavItem(string title, Action? action)
     {
         Title = title;
         Action = action;

@@ -59,4 +59,15 @@ public class ExcelLibraryExporterTests : IDisposable
         Assert.Equal("工程类型", ws.Cell(1, 1).GetValue<string>());
         Assert.Equal("技工费", ws.Cell(1, 2).GetValue<string>());
     }
+
+    [Theory]
+    [InlineData("../escape.xlsx")]
+    [InlineData("test.txt")]
+    [InlineData("")]
+    public void Export_InvalidPath_ThrowsArgumentException(string badPath)
+    {
+        var mgr = new LibraryManager();
+        var exporter = new ExcelLibraryExporter();
+        Assert.Throws<ArgumentException>(() => exporter.Export(badPath, mgr));
+    }
 }

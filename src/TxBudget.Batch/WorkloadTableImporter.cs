@@ -1,5 +1,6 @@
 using ClosedXML.Excel;
 using TxBudget.Batch.Models;
+using TxBudget.Core.Infrastructure;
 
 namespace TxBudget.Batch;
 
@@ -16,6 +17,8 @@ namespace TxBudget.Batch;
 /// </summary>
 public class WorkloadTableImporter
 {
+    private static readonly string[] AllowedImportExts = { ".xlsx", ".xls", ".csv" };
+
     public static readonly string[] QuotaCodeHeaders = { "quotacode", "定额编号", "编号" };
     public static readonly string[] QuotaNameHeaders = { "quotaname", "定额名称", "名称" };
     public static readonly string[] VariantHeaders = { "variant", "变体", "规格" };
@@ -30,6 +33,7 @@ public class WorkloadTableImporter
     /// </summary>
     public List<WorkloadTable> ImportFromExcel(string filePath)
     {
+        SafeFilePath.ValidateForRead(filePath, allowedExtensions: AllowedImportExts);
         using var workbook = new XLWorkbook(filePath);
         var tables = new List<WorkloadTable>();
         foreach (var worksheet in workbook.Worksheets)
@@ -116,6 +120,7 @@ public class WorkloadTableImporter
     /// </summary>
     public WorkloadTable ImportFromCsv(string filePath)
     {
+        SafeFilePath.ValidateForRead(filePath, allowedExtensions: AllowedImportExts);
         var table = new WorkloadTable { SheetName = Path.GetFileNameWithoutExtension(filePath) };
         var lines = File.ReadAllLines(filePath);
         if (lines.Length < 2) return table;

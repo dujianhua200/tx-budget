@@ -105,4 +105,15 @@ public class ExcelProjectExporterTests : IDisposable
         }
         Assert.True(found);
     }
+
+    [Theory]
+    [InlineData("../escape.xlsx")]
+    [InlineData("test.txt")]
+    [InlineData("")]
+    public void Export_InvalidPath_ThrowsArgumentException(string badPath)
+    {
+        var result = CreateMockResult();
+        var exporter = new ExcelProjectExporter();
+        Assert.Throws<ArgumentException>(() => exporter.Export(badPath, result, new[] { "Table1" }));
+    }
 }

@@ -1,0 +1,23 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- 通用按钮样式 -->
+    <Style Selector="Button">
+        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="Margin" Value="2"/>
+        <Setter Property="MinWidth" Value="60"/>
+    </Style>
+
+    <!-- DataGrid 紧凑样式 -->
+    <Style Selector="DataGrid">
+        <Setter Property="RowHeight" Value="24"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="AutoGenerateColumns" Value="False"/>
+        <Setter Property="HeadersVisibility" Value="Column"/>
+        <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+    </Style>
+
+    <!-- TabItem 风格 -->
+    <Style Selector="TabItem">
+        <Setter Property="Padding" Value="8,4"/>
+    </Style>
+</Styles>

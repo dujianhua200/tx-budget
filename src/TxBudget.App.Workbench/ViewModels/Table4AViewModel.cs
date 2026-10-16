@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows.Input;
-using TxBudget.App.Infrastructure;
+using TxBudget.App.Workbench.Infrastructure;
 
 namespace TxBudget.App.Workbench.ViewModels;
 
@@ -67,7 +67,7 @@ public class Table4AViewModel : WorkbenchTabViewModel
     {
         if (!decimal.TryParse(vatStr, out var vat))
         {
-            Host?.StatusMessage = "批量增值税：输入格式错误";
+            if (Host != null) Host.StatusMessage = "批量增值税：输入格式错误";
             return;
         }
         foreach (var row in Rows)
@@ -77,7 +77,7 @@ public class Table4AViewModel : WorkbenchTabViewModel
             row.AmtVat = System.Math.Round(row.Qty * row.PriceVat, 2);
             row.AmtIncl = row.AmtExcl + row.AmtVat;
         }
-        Host?.StatusMessage = $"已批量设置 {Rows.Count} 行增值税为 {vat:P}";
+        if (Host != null) Host.StatusMessage = $"已批量设置 {Rows.Count} 行增值税为 {vat:P}";
     }
 
     public class MatRowVm

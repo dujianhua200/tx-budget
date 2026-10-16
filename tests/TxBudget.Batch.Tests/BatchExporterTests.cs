@@ -72,4 +72,15 @@ public class BatchExporterTests : IDisposable
         var statusCell = summary.Cell(2, 5).GetValue<string>();
         Assert.Contains("失败", statusCell);
     }
+
+    [Theory]
+    [InlineData("../escape.xlsx")]
+    [InlineData("test.txt")]
+    [InlineData("")]
+    public void ExportToExcel_InvalidPath_ThrowsArgumentException(string badPath)
+    {
+        var result = new BatchGenerateResult { Projects = new List<BatchProjectResult>() };
+        var exporter = new BatchExporter();
+        Assert.Throws<ArgumentException>(() => exporter.ExportToExcel(result, badPath));
+    }
 }

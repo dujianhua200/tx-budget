@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows.Input;
-using TxBudget.App.Infrastructure;
+using TxBudget.App.Workbench.Infrastructure;
 using TxBudget.Core.Engine;
 using TxBudget.Core.Model;
 
@@ -72,13 +72,13 @@ public class Table3AViewModel : WorkbenchTabViewModel
     {
         if (row == null) return;
         // 真实实现应打开定额选择器；此处仅作标记
-        Host?.StatusMessage = "请在定额选择器中选择新定额替换";
+        if (Host != null) Host.StatusMessage = "请在定额选择器中选择新定额替换";
     }
 
     public void PickQuota(QuantityRowVm? row)
     {
         if (row == null) return;
-        Host?.StatusMessage = $"打开定额选择器（行={row.Source.Id}）";
+        if (Host != null) Host.StatusMessage = $"打开定额选择器（行={row.Source.Id}）";
     }
 }
 

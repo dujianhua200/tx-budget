@@ -112,4 +112,24 @@ public class WorkloadTableImporterTests : IDisposable
 
         Assert.Equal(2, tables[0].Rows.Count);
     }
+
+    [Theory]
+    [InlineData("../escape.xlsx")]
+    [InlineData("test.txt")]
+    [InlineData("")]
+    public void ImportFromExcel_InvalidPath_ThrowsArgumentException(string badPath)
+    {
+        var importer = new WorkloadTableImporter();
+        Assert.Throws<ArgumentException>(() => importer.ImportFromExcel(badPath));
+    }
+
+    [Theory]
+    [InlineData("../escape.csv")]
+    [InlineData("test.txt")]
+    [InlineData("")]
+    public void ImportFromCsv_InvalidPath_ThrowsArgumentException(string badPath)
+    {
+        var importer = new WorkloadTableImporter();
+        Assert.Throws<ArgumentException>(() => importer.ImportFromCsv(badPath));
+    }
 }
