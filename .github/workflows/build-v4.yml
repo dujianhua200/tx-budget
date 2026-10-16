@@ -76,7 +76,7 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Restore Core
-        run: dotnet restore src/TxBudget.Core/TxBudget.Core.csproj
+        run: dotnet restore src/TxBudget.Core/TxBudget.Core.csproj -r osx-arm64
 
       - name: Build Core (osx-arm64)
         run: dotnet build src/TxBudget.Core/TxBudget.Core.csproj -c Release --no-restore -r osx-arm64 --self-contained false -v minimal
