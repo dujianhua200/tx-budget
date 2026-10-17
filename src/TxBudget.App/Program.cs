@@ -4,7 +4,7 @@ using Avalonia.Fonts.Inter;
 
 namespace TxBudget.App;
 
-class Program
+public class Program
 {
     [STAThread]
     public static void Main(string[] args) => BuildAvaloniaApp()
