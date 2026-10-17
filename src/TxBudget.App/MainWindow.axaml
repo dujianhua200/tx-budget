@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:TxBudget.App.ViewModels"
+        xmlns:wvm="clr-namespace:TxBudget.App.Workbench.ViewModels;assembly=TxBudget.App.Workbench"
         x:Class="TxBudget.App.MainWindow"
         x:Name="RootWindow"
         x:DataType="vm:MainWindowViewModel"
@@ -93,7 +94,7 @@
                      ItemsSource="{Binding Navigation}"
                      SelectedItem="{Binding SelectedNav}">
                 <ListBox.ItemTemplate>
-                    <DataTemplate>
+                    <DataTemplate x:DataType="vm:NavItem">
                         <TextBlock Text="{Binding Title}" Padding="4"/>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
@@ -103,11 +104,11 @@
                         ItemsSource="{Binding OpenTabs}"
                         SelectedItem="{Binding SelectedTab}">
                 <TabControl.ItemTemplate>
-                    <DataTemplate>
+                    <DataTemplate x:DataType="wvm:WorkbenchTabViewModel">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{Binding Title}" VerticalAlignment="Center"/>
                             <Button Content="×" Margin="6,0,0,0" Padding="2,0"
-                                    Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).CloseTabCommand}"
+                                    Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).CloseTabCommand}"
                                     CommandParameter="{Binding}"/>
                         </StackPanel>
                     </DataTemplate>

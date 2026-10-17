@@ -99,7 +99,9 @@ jobs:
       - name: Restore Avalonia App
         run: dotnet restore src/TxBudget.App/TxBudget.App.csproj
       - name: Publish Avalonia App (osx-arm64)
-        run: dotnet publish src/TxBudget.App/TxBudget.App.csproj -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true -o ./publish/osx-arm64
+        # 关闭裁剪：Avalonia 11 的 XAML 反射绑定在 PublishTrimmed=true 下不稳定，
+        # PublishSingleFile 启用后默认开启裁剪，会导致 macOS 发布版界面绑定失败（ToString fallback）。
+        run: dotnet publish src/TxBudget.App/TxBudget.App.csproj -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o ./publish/osx-arm64
       - name: Package .app
         run: |
           mkdir -p ./publish/TxBudget.app/Contents/MacOS

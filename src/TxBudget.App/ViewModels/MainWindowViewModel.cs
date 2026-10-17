@@ -68,11 +68,11 @@ public class MainWindowViewModel : IMainWindowHost, INotifyPropertyChanged
         Navigation.Add(new NavItem("表五甲·其他费用", () => OpenTab(new Table5ViewModel())));
         Navigation.Add(new NavItem("汇总表", () => OpenTab(new SummaryViewModel())));
 
-        NewCommand = new RelayCommand(_ => New());
-        OpenCommand = new RelayCommand(async _ => await OpenAsync());
-        SaveCommand = new RelayCommand(_ => Save(), _ => !string.IsNullOrEmpty(ProjectPath));
-        SaveAsCommand = new RelayCommand(async _ => await SaveAsAsync());
-        CloseProjectCommand = new RelayCommand(_ => CloseProject(), _ => !string.IsNullOrEmpty(ProjectPath));
+        NewCommand = new AsyncRelayCommand(_ => NewAsync());
+        OpenCommand = new AsyncRelayCommand(async _ => await OpenAsync());
+        SaveCommand = new AsyncRelayCommand(async _ => await SaveAsync(), _ => !string.IsNullOrEmpty(ProjectPath));
+        SaveAsCommand = new AsyncRelayCommand(async _ => await SaveAsAsync());
+        CloseProjectCommand = new AsyncRelayCommand(_ => CloseProjectAsync(), _ => !string.IsNullOrEmpty(ProjectPath));
         ExitCommand = new RelayCommand(_ =>
         {
             if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
@@ -99,7 +99,7 @@ public class MainWindowViewModel : IMainWindowHost, INotifyPropertyChanged
         ShowRatesCommand = new RelayCommand(_ => StatusMessage = "费率编辑（待实现）");
         ShowDiscountCommand = new RelayCommand(_ => StatusMessage = "打折规则（待实现）");
         ShowTable5ConfigCommand = new RelayCommand(_ => StatusMessage = "表五配置（待实现）");
-        ShowAboutCommand = new RelayCommand(async _ => await ShowAboutAsync());
+        ShowAboutCommand = new AsyncRelayCommand(async _ => await ShowAboutAsync());
         CloseTabCommand = new RelayCommand(p => CloseTab(p as WorkbenchTabViewModel));
     }
 
@@ -170,9 +170,20 @@ public class MainWindowViewModel : IMainWindowHost, INotifyPropertyChanged
         set { _selectedTab = value; OnPropertyChanged(); }
     }
 
+    public async Task NewAsync()
+    {
+        if (IsDirty && !await ConfirmDiscardChanges()) return;
+        CurrentProject = new Project { Info = new ProjectInfo() };
+        ProjectPath = null;
+        IsDirty = false;
+        OpenTabs.Clear();
+        StatusMessage = "新建工程";
+    }
+
+    // 同步 New 保留供启动流程 / 测试使用（IsDirty=false 时直接跳过确认弹窗）
     public void New()
     {
-        if (IsDirty && !ConfirmDiscardChanges().GetAwaiter().GetResult()) return;
+        if (IsDirty) return; // 同步路径下无法弹异步对话框，启动/测试场景使用
         CurrentProject = new Project { Info = new ProjectInfo() };
         ProjectPath = null;
         IsDirty = false;
@@ -220,11 +231,11 @@ public class MainWindowViewModel : IMainWindowHost, INotifyPropertyChanged
         }
     }
 
-    public void Save()
+    public async Task SaveAsync()
     {
         if (string.IsNullOrEmpty(ProjectPath))
         {
-            SaveAsync().GetAwaiter().GetResult();
+            await SaveAsAsync();
             return;
         }
         SaveCore(ProjectPath);
@@ -254,8 +265,6 @@ public class MainWindowViewModel : IMainWindowHost, INotifyPropertyChanged
         SaveCore(path);
     }
 
-    private async Task SaveAsync() => await SaveAsAsync();
-
     private void SaveCore(string path)
     {
         try
@@ -271,9 +280,9 @@ public class MainWindowViewModel : IMainWindowHost, INotifyPropertyChanged
         }
     }
 
-    public void CloseProject()
+    public async Task CloseProjectAsync()
     {
-        if (IsDirty && !ConfirmDiscardChanges().GetAwaiter().GetResult()) return;
+        if (IsDirty && !await ConfirmDiscardChanges()) return;
         CurrentProject = null;
         ProjectPath = null;
         IsDirty = false;
@@ -340,6 +349,8 @@ public class MainWindowViewModel : IMainWindowHost, INotifyPropertyChanged
     {
         (SaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (CloseProjectCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (SaveCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+        (CloseProjectCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
     }
 
     private IStorageProvider? GetStorageProvider()

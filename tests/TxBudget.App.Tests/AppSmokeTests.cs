@@ -79,4 +79,37 @@ public class AppSmokeTests
             dataTemplate.Match(new Table3AViewModel()));
         Assert.NotNull(template);
     }
+
+    /// <summary>
+    /// 全面检查所有 10 个 Workbench ViewModel 都已注册 DataTemplate。
+    /// 这是一个回归测试——任何一个 ViewModel 漏注册都会让 Tab 内容只显示类型名。
+    /// </summary>
+    [AvaloniaFact]
+    public void DataTemplate_Registered_ForAllWorkbenchViewModels()
+    {
+        var app = Avalonia.Application.Current;
+        Assert.NotNull(app);
+
+        var viewModels = new object[]
+        {
+            new ProjectInfoViewModel(),
+            new Table3AViewModel(),
+            new Table3BViewModel(),
+            new Table3CViewModel(),
+            new Table4AViewModel(),
+            new Table4BViewModel(),
+            new Table2ViewModel(),
+            new Table1ViewModel(),
+            new Table5ViewModel(),
+            new SummaryViewModel(),
+        };
+
+        foreach (var vm in viewModels)
+        {
+            var template = app.DataTemplates.FirstOrDefault(dt =>
+                dt is IDataTemplate dataTemplate &&
+                dataTemplate.Match(vm));
+            Assert.NotNull(template, $"{vm.GetType().Name} 缺少 DataTemplate 注册");
+        }
+    }
 }
