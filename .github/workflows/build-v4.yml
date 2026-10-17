@@ -12,7 +12,7 @@ on:
 
 jobs:
   test-cross-platform:
-    name: Cross-platform tests (Core / Batch / Export / Library)
+    name: Cross-platform tests (Core / Batch / Export / Library / App)
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
@@ -26,7 +26,7 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Restore
+      - name: Restore Core
         run: dotnet restore src/TxBudget.Core/TxBudget.Core.csproj
 
       - name: Restore Batch
@@ -37,6 +37,12 @@ jobs:
 
       - name: Restore Library
         run: dotnet restore src/TxBudget.Library/TxBudget.Library.csproj
+
+      - name: Restore Avalonia App
+        run: dotnet restore src/TxBudget.App/TxBudget.App.csproj
+
+      - name: Restore App Tests
+        run: dotnet restore tests/TxBudget.App.Tests/TxBudget.App.Tests.csproj
 
       - name: Build Core
         run: dotnet build src/TxBudget.Core/TxBudget.Core.csproj -c Release --no-restore -v minimal
@@ -50,6 +56,12 @@ jobs:
       - name: Build Library
         run: dotnet build src/TxBudget.Library/TxBudget.Library.csproj -c Release --no-restore -v minimal
 
+      - name: Build Avalonia App
+        run: dotnet build src/TxBudget.App/TxBudget.App.csproj -c Release --no-restore -v minimal
+
+      - name: Build App Tests
+        run: dotnet build tests/TxBudget.App.Tests/TxBudget.App.Tests.csproj -c Release --no-restore -v minimal
+
       - name: Test Core (oracle 对拍)
         run: dotnet test tests/TxBudget.Core.Tests/TxBudget.Core.Tests.csproj -c Release --no-build --nologo -v normal
 
@@ -61,6 +73,9 @@ jobs:
 
       - name: Test Library
         run: dotnet test tests/TxBudget.Library.Tests/TxBudget.Library.Tests.csproj -c Release --no-build --nologo -v normal
+
+      - name: Test App (smoke)
+        run: dotnet test tests/TxBudget.App.Tests/TxBudget.App.Tests.csproj -c Release --no-build --nologo -v normal
 
   build-macos-app:
     name: macOS unsigned .app (osx-arm64)
