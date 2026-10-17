@@ -109,7 +109,7 @@ public class AppSmokeTests
             var template = app.DataTemplates.FirstOrDefault(dt =>
                 dt is IDataTemplate dataTemplate &&
                 dataTemplate.Match(vm));
-            Assert.NotNull(template, $"{vm.GetType().Name} 缺少 DataTemplate 注册");
+            Assert.True(template != null, $"{vm.GetType().Name} 缺少 DataTemplate 注册");
         }
     }
 }
