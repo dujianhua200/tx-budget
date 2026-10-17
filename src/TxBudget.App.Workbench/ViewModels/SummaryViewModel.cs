@@ -2,6 +2,9 @@ namespace TxBudget.App.Workbench.ViewModels;
 
 public class SummaryViewModel : WorkbenchTabViewModel
 {
+    public System.Collections.ObjectModel.ObservableCollection<SummaryRow> Rows { get; }
+        = new System.Collections.ObjectModel.ObservableCollection<SummaryRow>();
+
     public SummaryViewModel() { Title = "汇总表"; }
 
     public decimal ConstructionExcl => _lastResult?.Summary.ConstructionExcl ?? 0m;
@@ -17,6 +20,18 @@ public class SummaryViewModel : WorkbenchTabViewModel
     public override void Refresh()
     {
         base.Refresh();
+        Rows.Clear();
+        Rows.Add(new SummaryRow
+        {
+            Name = Host?.CurrentProject?.Info?.建设项目名称 ?? "工程总计",
+            ConstructionExcl = ConstructionExcl,
+            ConstructionVat = ConstructionVat,
+            ConstructionIncl = ConstructionIncl,
+            Other = Other,
+            OtherVat = OtherVat,
+            OtherIncl = OtherIncl,
+            TotalIncl = TotalIncl,
+        });
         OnPropertyChanged(nameof(ConstructionExcl));
         OnPropertyChanged(nameof(ConstructionVat));
         OnPropertyChanged(nameof(ConstructionIncl));
@@ -37,4 +52,17 @@ public class SummaryViewModel : WorkbenchTabViewModel
             Host.CurrentProject, Host.CurrentLibs ?? new TxBudget.Core.Model.LibrarySet());
         base.OnRecomputeRequested(sender, e);
     }
+}
+
+/// <summary>汇总表单行。</summary>
+public class SummaryRow
+{
+    public string Name { get; set; } = "";
+    public decimal ConstructionExcl { get; set; }
+    public decimal ConstructionVat { get; set; }
+    public decimal ConstructionIncl { get; set; }
+    public decimal Other { get; set; }
+    public decimal OtherVat { get; set; }
+    public decimal OtherIncl { get; set; }
+    public decimal TotalIncl { get; set; }
 }

@@ -15,7 +15,9 @@ using MsBox.Avalonia.Enums;
 using TxBudget.App.Infrastructure;
 using TxBudget.App.Workbench.Infrastructure;
 using TxBudget.App.Workbench.ViewModels;
+using TxBudget.Core.Engine;
 using TxBudget.Core.Model;
+using TxBudget.Export;
 
 namespace TxBudget.App.ViewModels;
 
@@ -40,6 +42,7 @@ public class MainWindowViewModel : IMainWindowHost, INotifyPropertyChanged
     public ICommand ShowProjectInfoCommand { get; }
     public ICommand ShowRateTemplateCommand { get; }
     public ICommand RecomputeCommand { get; }
+    public ICommand ExportExcelCommand { get; }
     public ICommand ShowTable3ACommand { get; }
     public ICommand ShowTable3BCommand { get; }
     public ICommand ShowTable3CCommand { get; }
@@ -87,6 +90,7 @@ public class MainWindowViewModel : IMainWindowHost, INotifyPropertyChanged
         ShowProjectInfoCommand = new RelayCommand(_ => OpenTab(new ProjectInfoViewModel()));
         ShowRateTemplateCommand = new RelayCommand(_ => StatusMessage = "取费模板（待实现）");
         RecomputeCommand = new RelayCommand(_ => Recompute());
+        ExportExcelCommand = new AsyncRelayCommand(async _ => await ExportExcelAsync(), _ => CurrentProject != null);
         ShowTable3ACommand = new RelayCommand(_ => OpenTab(new Table3AViewModel()));
         ShowTable3BCommand = new RelayCommand(_ => OpenTab(new Table3BViewModel()));
         ShowTable3CCommand = new RelayCommand(_ => OpenTab(new Table3CViewModel()));
@@ -142,6 +146,13 @@ public class MainWindowViewModel : IMainWindowHost, INotifyPropertyChanged
         set { _statusMessage = value; OnPropertyChanged(); }
     }
 
+    private string _diagBanner = "界面自检中…";
+    public string DiagBanner
+    {
+        get => _diagBanner;
+        set { _diagBanner = value; OnPropertyChanged(); }
+    }
+
     private bool _isBusy;
     public bool IsBusy
     {
@@ -172,12 +183,19 @@ public class MainWindowViewModel : IMainWindowHost, INotifyPropertyChanged
 
     public async Task NewAsync()
     {
-        if (IsDirty && !await ConfirmDiscardChanges()) return;
+        DiagLogger.Log("CMD: 新建工程(NewAsync) 开始");
+        if (IsDirty && !await ConfirmDiscardChanges())
+        {
+            DiagLogger.Log("NewAsync: 用户放弃修改确认，中止");
+            return;
+        }
         CurrentProject = new Project { Info = new ProjectInfo() };
         ProjectPath = null;
         IsDirty = false;
         OpenTabs.Clear();
+        OpenTab(new ProjectInfoViewModel());
         StatusMessage = "新建工程";
+        DiagLogger.Log("NewAsync: 完成，已打开工程信息页签");
     }
 
     // 同步 New 保留供启动流程 / 测试使用（IsDirty=false 时直接跳过确认弹窗）
@@ -193,8 +211,13 @@ public class MainWindowViewModel : IMainWindowHost, INotifyPropertyChanged
 
     public async Task OpenAsync()
     {
+        DiagLogger.Log("CMD: 打开工程(OpenAsync) 开始");
         var storage = GetStorageProvider();
-        if (storage == null) return;
+        if (storage == null)
+        {
+            DiagLogger.Log("OpenAsync: 无 StorageProvider，中止");
+            return;
+        }
 
         var files = await storage.OpenFilePickerAsync(new FilePickerOpenOptions
         {
@@ -208,9 +231,17 @@ public class MainWindowViewModel : IMainWindowHost, INotifyPropertyChanged
             }
         });
 
-        if (files.Count == 0) return;
+        if (files.Count == 0)
+        {
+            DiagLogger.Log("OpenAsync: 用户取消");
+            return;
+        }
         var path = files[0].TryGetLocalPath();
-        if (string.IsNullOrEmpty(path)) return;
+        if (string.IsNullOrEmpty(path))
+        {
+            DiagLogger.Log("OpenAsync: 无法获取本地路径，中止");
+            return;
+        }
 
         try
         {
@@ -218,15 +249,18 @@ public class MainWindowViewModel : IMainWindowHost, INotifyPropertyChanged
             if (proj == null)
             {
                 StatusMessage = "打开失败：文件为空或格式错误";
+                DiagLogger.Log("OpenAsync: 加载结果为空");
                 return;
             }
             CurrentProject = proj;
             ProjectPath = path;
             IsDirty = false;
             StatusMessage = $"已打开 {path}";
+            DiagLogger.Log($"OpenAsync: 成功 {path}");
         }
         catch (Exception ex)
         {
+            DiagLogger.Log("OpenAsync EXC: " + ex.Message);
             StatusMessage = $"打开失败：{ex.Message}";
         }
     }
@@ -290,11 +324,65 @@ public class MainWindowViewModel : IMainWindowHost, INotifyPropertyChanged
         StatusMessage = "工程已关闭";
     }
 
-    public void Recompute()
+    public async Task ExportExcelAsync()
     {
+        DiagLogger.Log("CMD: 导出Excel(ExportExcelAsync) 开始");
         if (CurrentProject == null)
         {
             StatusMessage = "没有打开的工程";
+            DiagLogger.Log("ExportExcel: 无工程，中止");
+            return;
+        }
+        var storage = GetStorageProvider();
+        if (storage == null)
+        {
+            DiagLogger.Log("ExportExcel: 无 StorageProvider，中止");
+            return;
+        }
+
+        var file = await storage.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "导出概预算报表",
+            DefaultExtension = "xlsx",
+            FileTypeChoices = new[]
+            {
+                new FilePickerFileType("Excel 工作簿") { Patterns = new[] { "*.xlsx" } },
+            }
+        });
+        if (file == null)
+        {
+            DiagLogger.Log("ExportExcel: 用户取消");
+            return;
+        }
+        var path = file.TryGetLocalPath();
+        if (string.IsNullOrEmpty(path)) return;
+
+        try
+        {
+            IsBusy = true;
+            var result = CalcEngine.CalcProject(CurrentProject, CurrentLibs!);
+            new ExcelProjectExporter().ExportAll(path, result);
+            StatusMessage = $"已导出 {path}";
+            DiagLogger.Log($"ExportExcel: 成功 {path}");
+        }
+        catch (Exception ex)
+        {
+            DiagLogger.Log("ExportExcel EXC: " + ex);
+            StatusMessage = $"导出失败：{ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public void Recompute()
+    {
+        DiagLogger.Log("CMD: 重新计算(Recompute) 开始");
+        if (CurrentProject == null)
+        {
+            StatusMessage = "没有打开的工程";
+            DiagLogger.Log("Recompute: 无工程，中止");
             return;
         }
         RecomputeRequested?.Invoke(this, EventArgs.Empty);
@@ -305,6 +393,7 @@ public class MainWindowViewModel : IMainWindowHost, INotifyPropertyChanged
 
     public void OpenTab(WorkbenchTabViewModel tab)
     {
+        DiagLogger.Log($"CMD: OpenTab {tab.Title}");
         tab.Attach(this);
         var existing = OpenTabs.FirstOrDefault(t => t.Title == tab.Title);
         if (existing != null)
@@ -351,6 +440,7 @@ public class MainWindowViewModel : IMainWindowHost, INotifyPropertyChanged
         (CloseProjectCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (SaveCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
         (CloseProjectCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+        (ExportExcelCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
     }
 
     private IStorageProvider? GetStorageProvider()

@@ -1,3 +1,4 @@
+using TxBudget.Core.Engine;
 using TxBudget.Core.Model;
 using TxBudget.Library;
 using Xunit;

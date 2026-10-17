@@ -38,17 +38,25 @@
         <!-- 表三甲·定额 -->
         <DataTemplate DataType="{x:Type wvm:Table3AViewModel}">
             <DockPanel Margin="4">
-                <TextBlock DockPanel.Dock="Top" Text="{Binding Summary}" Margin="0,0,0,4"/>
-                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="4" Margin="0,0,0,4">
-                    <Button Content="插入行" Command="{Binding InsertRowCommand}"/>
-                    <Button Content="删除行" Command="{Binding DeleteRowCommand}"/>
-                </StackPanel>
-                <DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="False">
+                <Border DockPanel.Dock="Top" Background="#F0F0F0" Padding="4" BorderBrush="#C0C0C0" BorderThickness="0,0,0,1">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <Button Content="插入行" Command="{Binding InsertRowCommand}" Padding="8,4"/>
+                        <Button Content="删除行" Command="{Binding DeleteRowCommand}" Padding="8,4"/>
+                        <Button Content="替换定额" Command="{Binding ReplaceQuotaCommand}" Padding="8,4"/>
+                        <Button Content="选择定额" Command="{Binding PickQuotaCommand}" Padding="8,4"/>
+                        <TextBlock Text="{Binding Summary}" VerticalAlignment="Center" Margin="8,0"/>
+                    </StackPanel>
+                </Border>
+                <DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="False"
+                          CanUserSortColumns="True" CanUserResizeColumns="True"
+                          GridLinesVisibility="All" BorderThickness="1" BorderBrush="#C0C0C0">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="定额" Binding="{Binding Quota}" Width="*"/>
-                        <DataGridTextColumn Header="Variant" Binding="{Binding Variant}" Width="*"/>
-                        <DataGridTextColumn Header="数量" Binding="{Binding Qty}" Width="*"/>
-                        <DataGridTextColumn Header="系数" Binding="{Binding Coef}" Width="*"/>
+                        <DataGridTextColumn Header="编号" Binding="{Binding Source.Id}" Width="100"/>
+                        <DataGridTextColumn Header="定额编号" Binding="{Binding Quota}" Width="120"/>
+                        <DataGridTextColumn Header="定额名称" Binding="{Binding Variant}" Width="*"/>
+                        <DataGridTextColumn Header="单位" Binding="{Binding Source.Unit}" Width="80"/>
+                        <DataGridTextColumn Header="数量" Binding="{Binding Qty}" Width="100"/>
+                        <DataGridTextColumn Header="系数" Binding="{Binding Coef}" Width="80"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </DockPanel>
@@ -99,24 +107,26 @@
         <!-- 表四甲·甲供材料 -->
         <DataTemplate DataType="{x:Type wvm:Table4AViewModel}">
             <DockPanel Margin="4">
-                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,4">
-                    <TextBlock Text="{Binding TotalExcl, StringFormat='不含税合计: {0}'}"/>
-                    <TextBlock Text="{Binding TotalVat, StringFormat='增值税合计: {0}'}"/>
-                    <TextBlock Text="{Binding TotalIncl, StringFormat='含税合计: {0}'}"/>
-                </StackPanel>
-                <DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="False">
+                <Border DockPanel.Dock="Top" Background="#F0F0F0" Padding="4" BorderBrush="#C0C0C0" BorderThickness="0,0,0,1">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <TextBlock Text="{Binding TotalExcl, StringFormat='不含税合计: {0}'}" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding TotalVat, StringFormat='增值税合计: {0}'}" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding TotalIncl, StringFormat='含税合计: {0}'}" VerticalAlignment="Center" FontWeight="Bold"/>
+                    </StackPanel>
+                </Border>
+                <DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="False"
+                          CanUserSortColumns="True" CanUserResizeColumns="True"
+                          GridLinesVisibility="All" BorderThickness="1" BorderBrush="#C0C0C0">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Key" Binding="{Binding Key}" Width="*"/>
-                        <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="2*"/>
-                        <DataGridTextColumn Header="规格" Binding="{Binding Spec}" Width="*"/>
-                        <DataGridTextColumn Header="单位" Binding="{Binding Unit}" Width="*"/>
-                        <DataGridTextColumn Header="数量" Binding="{Binding Qty}" Width="*"/>
-                        <DataGridTextColumn Header="不含税价" Binding="{Binding PriceExcl}" Width="*"/>
-                        <DataGridTextColumn Header="增值税" Binding="{Binding PriceVat}" Width="*"/>
-                        <DataGridTextColumn Header="含税价" Binding="{Binding PriceIncl}" Width="*"/>
-                        <DataGridTextColumn Header="不含税金额" Binding="{Binding AmtExcl}" Width="*"/>
-                        <DataGridTextColumn Header="增值税额" Binding="{Binding AmtVat}" Width="*"/>
-                        <DataGridTextColumn Header="含税金额" Binding="{Binding AmtIncl}" Width="*"/>
+                        <DataGridTextColumn Header="代号" Binding="{Binding Key}" Width="80"/>
+                        <DataGridTextColumn Header="材料名称" Binding="{Binding Name}" Width="*"/>
+                        <DataGridTextColumn Header="规格型号" Binding="{Binding Spec}" Width="120"/>
+                        <DataGridTextColumn Header="单位" Binding="{Binding Unit}" Width="60"/>
+                        <DataGridTextColumn Header="数量" Binding="{Binding Qty}" Width="80"/>
+                        <DataGridTextColumn Header="除税价格" Binding="{Binding PriceExcl}" Width="80"/>
+                        <DataGridTextColumn Header="材料金额" Binding="{Binding AmtExcl}" Width="80"/>
+                        <DataGridTextColumn Header="增值税额" Binding="{Binding AmtVat}" Width="80"/>
+                        <DataGridTextColumn Header="含税金额" Binding="{Binding AmtIncl}" Width="90"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </DockPanel>
@@ -125,24 +135,26 @@
         <!-- 表四乙·乙供材料 -->
         <DataTemplate DataType="{x:Type wvm:Table4BViewModel}">
             <DockPanel Margin="4">
-                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,4">
-                    <TextBlock Text="{Binding TotalExcl, StringFormat='不含税合计: {0}'}"/>
-                    <TextBlock Text="{Binding TotalVat, StringFormat='增值税合计: {0}'}"/>
-                    <TextBlock Text="{Binding TotalIncl, StringFormat='含税合计: {0}'}"/>
-                </StackPanel>
-                <DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="False">
+                <Border DockPanel.Dock="Top" Background="#F0F0F0" Padding="4" BorderBrush="#C0C0C0" BorderThickness="0,0,0,1">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <TextBlock Text="{Binding TotalExcl, StringFormat='不含税合计: {0}'}" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding TotalVat, StringFormat='增值税合计: {0}'}" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding TotalIncl, StringFormat='含税合计: {0}'}" VerticalAlignment="Center" FontWeight="Bold"/>
+                    </StackPanel>
+                </Border>
+                <DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="False"
+                          CanUserSortColumns="True" CanUserResizeColumns="True"
+                          GridLinesVisibility="All" BorderThickness="1" BorderBrush="#C0C0C0">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Key" Binding="{Binding Key}" Width="*"/>
-                        <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="2*"/>
-                        <DataGridTextColumn Header="规格" Binding="{Binding Spec}" Width="*"/>
-                        <DataGridTextColumn Header="单位" Binding="{Binding Unit}" Width="*"/>
-                        <DataGridTextColumn Header="数量" Binding="{Binding Qty}" Width="*"/>
-                        <DataGridTextColumn Header="不含税价" Binding="{Binding PriceExcl}" Width="*"/>
-                        <DataGridTextColumn Header="增值税" Binding="{Binding PriceVat}" Width="*"/>
-                        <DataGridTextColumn Header="含税价" Binding="{Binding PriceIncl}" Width="*"/>
-                        <DataGridTextColumn Header="不含税金额" Binding="{Binding AmtExcl}" Width="*"/>
-                        <DataGridTextColumn Header="增值税额" Binding="{Binding AmtVat}" Width="*"/>
-                        <DataGridTextColumn Header="含税金额" Binding="{Binding AmtIncl}" Width="*"/>
+                        <DataGridTextColumn Header="代号" Binding="{Binding Key}" Width="80"/>
+                        <DataGridTextColumn Header="材料名称" Binding="{Binding Name}" Width="*"/>
+                        <DataGridTextColumn Header="规格型号" Binding="{Binding Spec}" Width="120"/>
+                        <DataGridTextColumn Header="单位" Binding="{Binding Unit}" Width="60"/>
+                        <DataGridTextColumn Header="数量" Binding="{Binding Qty}" Width="80"/>
+                        <DataGridTextColumn Header="除税价格" Binding="{Binding PriceExcl}" Width="80"/>
+                        <DataGridTextColumn Header="材料金额" Binding="{Binding AmtExcl}" Width="80"/>
+                        <DataGridTextColumn Header="增值税额" Binding="{Binding AmtVat}" Width="80"/>
+                        <DataGridTextColumn Header="含税金额" Binding="{Binding AmtIncl}" Width="90"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </DockPanel>
@@ -151,20 +163,37 @@
         <!-- 双表二·取费 -->
         <DataTemplate DataType="{x:Type wvm:Table2ViewModel}">
             <DockPanel Margin="4">
-                <ComboBox DockPanel.Dock="Top" ItemsSource="{Binding DiscountTemplateOptions}" SelectedItem="{Binding SelectedTemplate}" Margin="0,0,0,4"/>
-                <Grid ColumnDefinitions="*,*">
-                    <DataGrid Grid.Column="0" ItemsSource="{Binding Before}" AutoGenerateColumns="False" Margin="0,0,2,0">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="项目" Binding="{Binding Key}" Width="2*"/>
-                            <DataGridTextColumn Header="折前金额" Binding="{Binding Value}" Width="*"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                    <DataGrid Grid.Column="1" ItemsSource="{Binding After}" AutoGenerateColumns="False" Margin="2,0,0,0">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="项目" Binding="{Binding Key}" Width="2*"/>
-                            <DataGridTextColumn Header="折后金额" Binding="{Binding Value}" Width="*"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
+                <Border DockPanel.Dock="Top" Background="#F0F0F0" Padding="4" BorderBrush="#C0C0C0" BorderThickness="0,0,0,1">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="打折模板：" VerticalAlignment="Center"/>
+                        <ComboBox ItemsSource="{Binding DiscountTemplateOptions}" SelectedItem="{Binding SelectedTemplate}" Width="200"/>
+                    </StackPanel>
+                </Border>
+                <Grid ColumnDefinitions="*,*" Margin="0,4,0,0">
+                    <Grid Grid.Column="0" RowDefinitions="Auto,*">
+                        <Border Grid.Row="0" Background="#E8E8F8" Padding="4">
+                            <TextBlock Text="表二（折扣前）" FontWeight="Bold" HorizontalAlignment="Center"/>
+                        </Border>
+                        <DataGrid Grid.Row="1" ItemsSource="{Binding Before}" AutoGenerateColumns="False"
+                                  CanUserSortColumns="True" GridLinesVisibility="All" BorderThickness="1" BorderBrush="#C0C0C0" Margin="0,0,2,0">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="项目" Binding="{Binding Key}" Width="2*"/>
+                                <DataGridTextColumn Header="折前金额" Binding="{Binding Value}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                    <Grid Grid.Column="1" RowDefinitions="Auto,*">
+                        <Border Grid.Row="0" Background="#E8F8E8" Padding="4">
+                            <TextBlock Text="表二（折扣后）" FontWeight="Bold" HorizontalAlignment="Center"/>
+                        </Border>
+                        <DataGrid Grid.Row="1" ItemsSource="{Binding After}" AutoGenerateColumns="False"
+                                  CanUserSortColumns="True" GridLinesVisibility="All" BorderThickness="1" BorderBrush="#C0C0C0" Margin="2,0,0,0">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="项目" Binding="{Binding Key}" Width="2*"/>
+                                <DataGridTextColumn Header="折后金额" Binding="{Binding Value}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
                 </Grid>
             </DockPanel>
         </DataTemplate>
@@ -196,21 +225,26 @@
         <!-- 表五甲·其他费用 -->
         <DataTemplate DataType="{x:Type wvm:Table5ViewModel}">
             <DockPanel Margin="4">
-                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,4">
-                    <TextBlock Text="{Binding SafetyFee, StringFormat='安全生产费: {0}'}"/>
-                    <TextBlock Text="{Binding TotalExcl, StringFormat='不含税合计: {0}'}"/>
-                    <TextBlock Text="{Binding TotalVat, StringFormat='增值税合计: {0}'}"/>
-                    <TextBlock Text="{Binding TotalIncl, StringFormat='含税合计: {0}'}"/>
-                </StackPanel>
-                <DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="False">
+                <Border DockPanel.Dock="Top" Background="#F0F0F0" Padding="4" BorderBrush="#C0C0C0" BorderThickness="0,0,0,1">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <TextBlock Text="{Binding SafetyFee, StringFormat='安全生产费: {0}'}" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding TotalExcl, StringFormat='不含税合计: {0}'}" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding TotalVat, StringFormat='增值税合计: {0}'}" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding TotalIncl, StringFormat='含税合计: {0}'}" VerticalAlignment="Center" FontWeight="Bold"/>
+                    </StackPanel>
+                </Border>
+                <DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="False"
+                          CanUserSortColumns="True" CanUserResizeColumns="True"
+                          GridLinesVisibility="All" BorderThickness="1" BorderBrush="#C0C0C0">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Key" Binding="{Binding Key}" Width="*"/>
-                        <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="2*"/>
-                        <DataGridTextColumn Header="计费基础" Binding="{Binding Basis}" Width="*"/>
-                        <DataGridTextColumn Header="费率" Binding="{Binding Rate}" Width="*"/>
-                        <DataGridTextColumn Header="增值税率" Binding="{Binding VatRate}" Width="*"/>
-                        <DataGridTextColumn Header="金额" Binding="{Binding Excl}" Width="*"/>
-                        <DataGridCheckBoxColumn Header="启用" Binding="{Binding Enabled}" Width="*"/>
+                        <DataGridTextColumn Header="序号" Binding="{Binding Order}" Width="60"/>
+                        <DataGridTextColumn Header="费用名称" Binding="{Binding Name}" Width="*"/>
+                        <DataGridTextColumn Header="单价计算式" Binding="{Binding Basis}" Width="*"/>
+                        <DataGridTextColumn Header="费率" Binding="{Binding Rate}" Width="80"/>
+                        <DataGridTextColumn Header="除税合计" Binding="{Binding Excl}" Width="100"/>
+                        <DataGridTextColumn Header="含税合计" Binding="{Binding Incl}" Width="100"/>
+                        <DataGridTextColumn Header="备注" Binding="{Binding Note}" Width="100"/>
+                        <DataGridCheckBoxColumn Header="启用" Binding="{Binding Enabled}" Width="60"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </DockPanel>
@@ -218,26 +252,25 @@
 
         <!-- 汇总表 -->
         <DataTemplate DataType="{x:Type wvm:SummaryViewModel}">
-            <Grid Margin="10" ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
-                <TextBlock Grid.Row="0" Grid.Column="0" Text="建安工程费(不含税)" Margin="4"/>
-                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding ConstructionExcl}" Margin="4"/>
-                <TextBlock Grid.Row="1" Grid.Column="0" Text="建安工程费(增值税)" Margin="4"/>
-                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ConstructionVat}" Margin="4"/>
-                <TextBlock Grid.Row="2" Grid.Column="0" Text="建安工程费(含税)" Margin="4"/>
-                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding ConstructionIncl}" Margin="4"/>
-                <TextBlock Grid.Row="3" Grid.Column="0" Text="其他费(不含税)" Margin="4"/>
-                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Other}" Margin="4"/>
-                <TextBlock Grid.Row="4" Grid.Column="0" Text="其他费(增值税)" Margin="4"/>
-                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding OtherVat}" Margin="4"/>
-                <TextBlock Grid.Row="5" Grid.Column="0" Text="其他费(含税)" Margin="4"/>
-                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding OtherIncl}" Margin="4"/>
-                <TextBlock Grid.Row="6" Grid.Column="0" Text="总计(不含税)" Margin="4"/>
-                <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding TotalExcl}" Margin="4"/>
-                <TextBlock Grid.Row="7" Grid.Column="0" Text="总计(增值税)" Margin="4"/>
-                <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding TotalVat}" Margin="4"/>
-                <TextBlock Grid.Row="8" Grid.Column="0" Text="总计(含税)" Margin="4"/>
-                <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding TotalIncl}" Margin="4"/>
-            </Grid>
+            <DockPanel Margin="4">
+                <Border DockPanel.Dock="Top" Background="#E8E8F8" Padding="4" BorderBrush="#C0C0C0" BorderThickness="0,0,0,1">
+                    <TextBlock Text="工程汇总" FontWeight="Bold" HorizontalAlignment="Center"/>
+                </Border>
+                <DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="False"
+                          CanUserSortColumns="False" GridLinesVisibility="All" BorderThickness="1" BorderBrush="#C0C0C0"
+                          Margin="0,4,0,0">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="单位工程名称" Binding="{Binding Name}" Width="*"/>
+                        <DataGridTextColumn Header="建安工程费(不含税)" Binding="{Binding ConstructionExcl}" Width="120"/>
+                        <DataGridTextColumn Header="建安工程费(增值税)" Binding="{Binding ConstructionVat}" Width="120"/>
+                        <DataGridTextColumn Header="建安工程费(含税)" Binding="{Binding ConstructionIncl}" Width="120"/>
+                        <DataGridTextColumn Header="其他费(不含税)" Binding="{Binding Other}" Width="100"/>
+                        <DataGridTextColumn Header="其他费(增值税)" Binding="{Binding OtherVat}" Width="100"/>
+                        <DataGridTextColumn Header="其他费(含税)" Binding="{Binding OtherIncl}" Width="100"/>
+                        <DataGridTextColumn Header="总计(含税)" Binding="{Binding TotalIncl}" Width="120"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
         </DataTemplate>
     </Application.DataTemplates>
 

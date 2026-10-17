@@ -19,7 +19,7 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\TxBudget.Core\TxBudget.Core.csproj" />
+    <ProjectReference Include="..\..\src\TxBudget.Core\TxBudget.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Update="fixtures\lo_values.json">

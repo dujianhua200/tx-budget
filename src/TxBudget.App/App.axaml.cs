@@ -11,6 +11,7 @@ using MsBox.Avalonia;
 using MsBox.Avalonia.Enums;
 using TxBudget.App.Infrastructure;
 using TxBudget.App.ViewModels;
+using TxBudget.App.Workbench.ViewModels;
 using TxBudget.Core.Infrastructure;
 
 namespace TxBudget.App;
@@ -24,6 +25,10 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // 诊断：Avalonia 绑定警告路由到 diag.log + 启动版本日志
+        System.Diagnostics.Trace.Listeners.Add(new DiagTraceListener());
+        DiagLogger.Log($"===== 启动 v{typeof(Program).Assembly.GetName().Version?.ToString(3)} =====");
+
         // 全局异常处理：任何未捕获异常写入日志文件
         AppDomain.CurrentDomain.UnhandledException += (s, e) =>
         {
@@ -58,8 +63,12 @@ public partial class App : Application
 
             // 启动时自动创建空工程，避免界面全部空白
             vm.New();
+            vm.OpenTab(new ProjectInfoViewModel());
 
             mainWindow.DataContext = vm;
+
+            // 窗口显示后运行界面自检（按钮命令绑定 + 页签打开全链路）
+            mainWindow.Opened += (s, e) => mainWindow.RunStartupSelfTest(vm);
 
             desktop.MainWindow = mainWindow;
             desktop.ShutdownMode = Avalonia.Controls.ShutdownMode.OnMainWindowClose;

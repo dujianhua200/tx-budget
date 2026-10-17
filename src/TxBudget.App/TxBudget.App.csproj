@@ -2,6 +2,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
+    <Version>1.2.0</Version>
     <Nullable>enable</Nullable>
     <LangVersion>12</LangVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -18,21 +19,22 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="11.1.5" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.1.5" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.1.5" />
-    <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.1.5" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.1.5" />
+    <PackageReference Include="Avalonia" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.13" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.22" />
     <PackageReference Include="MessageBox.Avalonia" Version="3.3.1.1" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(Configuration)' == 'Debug'">
-    <PackageReference Include="Avalonia.Diagnostics" Version="11.1.5" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.22" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\TxBudget.Core\TxBudget.Core.csproj" />
     <ProjectReference Include="..\TxBudget.App.Workbench\TxBudget.App.Workbench.csproj" />
     <ProjectReference Include="..\TxBudget.Library\TxBudget.Library.csproj" />
+    <ProjectReference Include="..\TxBudget.Export\TxBudget.Export.csproj" />
   </ItemGroup>
 </Project>
