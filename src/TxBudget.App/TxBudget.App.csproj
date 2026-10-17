@@ -14,6 +14,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="..\..\data\seed.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.1.5" />
     <PackageReference Include="Avalonia.Desktop" Version="11.1.5" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.1.5" />
@@ -29,5 +33,6 @@
   <ItemGroup>
     <ProjectReference Include="..\TxBudget.Core\TxBudget.Core.csproj" />
     <ProjectReference Include="..\TxBudget.App.Workbench\TxBudget.App.Workbench.csproj" />
+    <ProjectReference Include="..\TxBudget.Library\TxBudget.Library.csproj" />
   </ItemGroup>
 </Project>

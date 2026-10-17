@@ -114,7 +114,7 @@ public class MainWindowViewModel : IMainWindowHost, INotifyPropertyChanged
     public LibrarySet? CurrentLibs
     {
         get => _currentLibs;
-        set { _currentLibs = value; OnPropertyChanged(); }
+        set { _currentLibs = value; OnPropertyChanged(); AppLogger.Log($"CurrentLibs set: {value?.Quotas?.Count ?? 0} quotas"); }
     }
 
     private string? _projectPath;
