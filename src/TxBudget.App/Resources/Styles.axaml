@@ -1,10 +1,73 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <!-- 通用按钮样式 -->
+    <!-- 通算宝设计语言：组件样式 -->
+
+    <!-- 基础按钮 -->
     <Style Selector="Button">
         <Setter Property="Padding" Value="8,4"/>
         <Setter Property="Margin" Value="2"/>
         <Setter Property="MinWidth" Value="60"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <!-- 主按钮（青绿） -->
+    <Style Selector="Button.btn-primary">
+        <Setter Property="Background" Value="{DynamicResource C.Primary}"/>
+        <Setter Property="Foreground" Value="White"/>
+    </Style>
+    <Style Selector="Button.btn-primary:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource C.PrimaryDark}"/>
+    </Style>
+
+    <!-- 幽灵按钮（白底青边） -->
+    <Style Selector="Button.btn-ghost">
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="Foreground" Value="{DynamicResource C.Primary}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource C.Primary}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="Button.btn-ghost:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="#E6F2F1"/>
+        <Setter Property="Foreground" Value="{DynamicResource C.PrimaryDark}"/>
+    </Style>
+
+    <!-- 强调按钮（琥珀） -->
+    <Style Selector="Button.btn-accent">
+        <Setter Property="Background" Value="{DynamicResource C.Accent}"/>
+        <Setter Property="Foreground" Value="{DynamicResource C.Text}"/>
+    </Style>
+
+    <!-- 危险按钮 -->
+    <Style Selector="Button.btn-danger">
+        <Setter Property="Background" Value="{DynamicResource C.Danger}"/>
+        <Setter Property="Foreground" Value="White"/>
+    </Style>
+
+    <!-- 侧边栏导航按钮 -->
+    <Style Selector="Button.nav-item">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource C.SidebarText}"/>
+        <Setter Property="Padding" Value="11,10"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Margin" Value="0,0,0,4"/>
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="Normal"/>
+        <Setter Property="MinWidth" Value="0"/>
+    </Style>
+    <Style Selector="Button.nav-item:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="#28FFFFFF"/>
+        <Setter Property="Foreground" Value="White"/>
+    </Style>
+
+    <!-- 卡片容器 -->
+    <Style Selector="Border.card">
+        <Setter Property="Background" Value="{DynamicResource C.Card}"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="16"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource C.Line}"/>
+        <Setter Property="BorderThickness" Value="1"/>
     </Style>
 
     <!-- DataGrid 紧凑样式 -->
@@ -14,10 +77,28 @@
         <Setter Property="AutoGenerateColumns" Value="False"/>
         <Setter Property="HeadersVisibility" Value="Column"/>
         <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource C.Line}"/>
+        <Setter Property="Background" Value="White"/>
+    </Style>
+
+    <!-- DataGrid 表头：通算宝表格风格 -->
+    <Style Selector="DataGridColumnHeader">
+        <Setter Property="Background" Value="{DynamicResource C.HeaderBg}"/>
+        <Setter Property="Foreground" Value="{DynamicResource C.Muted}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Padding" Value="9,6"/>
+        <Setter Property="SeparatorBrush" Value="{DynamicResource C.Line}"/>
     </Style>
 
     <!-- TabItem 风格 -->
     <Style Selector="TabItem">
         <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Foreground" Value="{DynamicResource C.Text}"/>
+    </Style>
+    <Style Selector="TabItem:selected">
+        <Setter Property="Foreground" Value="{DynamicResource C.PrimaryDark}"/>
+        <Setter Property="FontWeight" Value="Bold"/>
     </Style>
 </Styles>

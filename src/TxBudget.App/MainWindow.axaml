@@ -5,7 +5,8 @@
         x:Class="TxBudget.App.MainWindow"
         x:Name="RootWindow"
         x:DataType="vm:MainWindowViewModel"
-        Title="宇翔通信概预算软件 v4.0" Height="800" Width="1400"
+        Title="通算宝 · 通信工程概预算 v4.0" Height="800" Width="1400"
+        Background="{DynamicResource C.Bg}"
         WindowStartupLocation="CenterScreen">
     <DockPanel>
         <!-- 菜单栏 -->
@@ -36,14 +37,14 @@
                 <MenuItem Header="导出Excel(_E)..." Command="{Binding ExportExcelCommand}"/>
             </MenuItem>
             <MenuItem Header="视图(_V)">
-                <MenuItem Header="表三甲·定额录入" Command="{Binding ShowTable3ACommand}"/>
-                <MenuItem Header="表三乙·机械台班" Command="{Binding ShowTable3BCommand}"/>
-                <MenuItem Header="表三丙·仪器仪表" Command="{Binding ShowTable3CCommand}"/>
-                <MenuItem Header="表四甲·材料汇总" Command="{Binding ShowTable4ACommand}"/>
-                <MenuItem Header="表四乙·乙供材料" Command="{Binding ShowTable4BCommand}"/>
-                <MenuItem Header="双表二·取费" Command="{Binding ShowTable2Command}"/>
-                <MenuItem Header="表一·预算汇总" Command="{Binding ShowTable1Command}"/>
-                <MenuItem Header="表五甲·其他费用" Command="{Binding ShowTable5Command}"/>
+                <MenuItem Header="定额输入(表三甲)" Command="{Binding ShowTable3ACommand}"/>
+                <MenuItem Header="机械台班(表三乙)" Command="{Binding ShowTable3BCommand}"/>
+                <MenuItem Header="仪器仪表(表三丙)" Command="{Binding ShowTable3CCommand}"/>
+                <MenuItem Header="材料汇总(表四甲)" Command="{Binding ShowTable4ACommand}"/>
+                <MenuItem Header="乙供材料(表四乙)" Command="{Binding ShowTable4BCommand}"/>
+                <MenuItem Header="措施取费(表二)" Command="{Binding ShowTable2Command}"/>
+                <MenuItem Header="预算汇总(表一)" Command="{Binding ShowTable1Command}"/>
+                <MenuItem Header="其他费用(表五)" Command="{Binding ShowTable5Command}"/>
                 <MenuItem Header="汇总表" Command="{Binding ShowSummaryCommand}"/>
             </MenuItem>
             <MenuItem Header="工具(_T)">
@@ -57,104 +58,151 @@
         </Menu>
 
         <!-- 快捷工具栏 -->
-        <Border DockPanel.Dock="Top" Background="#E8E8E8" Padding="4" BorderBrush="#C0C0C0" BorderThickness="0,0,0,1">
+        <Border DockPanel.Dock="Top" Background="{DynamicResource C.Card}" Padding="6,4"
+                BorderBrush="{DynamicResource C.Line}" BorderThickness="0,0,0,1">
             <StackPanel Orientation="Horizontal" Spacing="4">
-                <Button Command="{Binding NewCommand}" ToolTip.Tip="新建工程 (Ctrl+N)" Padding="8,4">
+                <Button Classes="btn-ghost" Command="{Binding NewCommand}" ToolTip.Tip="新建工程 (Ctrl+N)">
                     <TextBlock Text="📄 新建"/>
                 </Button>
-                <Button Command="{Binding OpenCommand}" ToolTip.Tip="打开工程 (Ctrl+O)" Padding="8,4">
+                <Button Classes="btn-ghost" Command="{Binding OpenCommand}" ToolTip.Tip="打开工程 (Ctrl+O)">
                     <TextBlock Text="📂 打开"/>
                 </Button>
-                <Button Command="{Binding SaveCommand}" ToolTip.Tip="保存工程 (Ctrl+S)" Padding="8,4">
+                <Button Classes="btn-primary" Command="{Binding SaveCommand}" ToolTip.Tip="保存工程 (Ctrl+S)">
                     <TextBlock Text="💾 保存"/>
                 </Button>
-                <Separator Margin="4,0"/>
-                <Button Command="{Binding RecomputeCommand}" ToolTip.Tip="重新计算 (F5)" Padding="8,4">
+                <Separator Margin="6,0"/>
+                <Button Classes="btn-accent" Command="{Binding RecomputeCommand}" ToolTip.Tip="重新计算 (F5)">
                     <TextBlock Text="🔄 计算"/>
                 </Button>
-                <Button Command="{Binding ExportExcelCommand}" ToolTip.Tip="导出概预算报表到 Excel" Padding="8,4">
-                    <TextBlock Text="📤 导出"/>
+                <Button Classes="btn-primary" Command="{Binding ExportExcelCommand}" ToolTip.Tip="导出概预算报表到 Excel">
+                    <TextBlock Text="📤 导出 Excel"/>
                 </Button>
-                <Separator Margin="4,0"/>
-                <Button Command="{Binding ShowTable3ACommand}" ToolTip.Tip="表三甲" Padding="8,4">
-                    <TextBlock Text="表三甲"/>
+                <Separator Margin="6,0"/>
+                <Button Classes="btn-ghost" Command="{Binding ShowTable3ACommand}" ToolTip.Tip="表三甲·定额输入">
+                    <TextBlock Text="定额输入"/>
                 </Button>
-                <Button Command="{Binding ShowTable4ACommand}" ToolTip.Tip="表四甲" Padding="8,4">
-                    <TextBlock Text="表四甲"/>
+                <Button Classes="btn-ghost" Command="{Binding ShowTable4ACommand}" ToolTip.Tip="表四甲·材料汇总">
+                    <TextBlock Text="材料"/>
                 </Button>
-                <Button Command="{Binding ShowTable2Command}" ToolTip.Tip="表二" Padding="8,4">
-                    <TextBlock Text="表二"/>
+                <Button Classes="btn-ghost" Command="{Binding ShowTable2Command}" ToolTip.Tip="表二·措施取费">
+                    <TextBlock Text="取费"/>
                 </Button>
-                <Button Command="{Binding ShowTable1Command}" ToolTip.Tip="表一" Padding="8,4">
+                <Button Classes="btn-ghost" Command="{Binding ShowTable1Command}" ToolTip.Tip="表一·预算汇总">
                     <TextBlock Text="表一"/>
                 </Button>
-                <Button Command="{Binding ShowTable5Command}" ToolTip.Tip="表五" Padding="8,4">
-                    <TextBlock Text="表五"/>
+                <Button Classes="btn-ghost" Command="{Binding ShowTable5Command}" ToolTip.Tip="表五·其他费用">
+                    <TextBlock Text="其他费用"/>
                 </Button>
-                <Button Command="{Binding ShowSummaryCommand}" ToolTip.Tip="汇总表" Padding="8,4">
+                <Button Classes="btn-ghost" Command="{Binding ShowSummaryCommand}" ToolTip.Tip="汇总表">
                     <TextBlock Text="汇总"/>
                 </Button>
             </StackPanel>
         </Border>
 
         <!-- 自检横幅 -->
-        <Border DockPanel.Dock="Top" Background="#FFF3CD" Padding="6,3">
+        <Border DockPanel.Dock="Top" Background="{DynamicResource C.TotalBg}" Padding="6,3">
             <TextBlock Text="{Binding DiagBanner}" FontSize="12" Foreground="#664D03"/>
         </Border>
 
         <!-- 底部状态栏 -->
-        <Border DockPanel.Dock="Bottom" Background="#E8E8E8" Padding="4" BorderBrush="#C0C0C0" BorderThickness="0,1,0,0">
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource C.Card}" Padding="6,4"
+                BorderBrush="{DynamicResource C.Line}" BorderThickness="0,1,0,0">
             <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*">
-                <TextBlock Grid.Column="0" Text="{Binding StatusMessage}" VerticalAlignment="Center" Margin="4,0"/>
-                <Rectangle Grid.Column="1" Width="1" Fill="#C0C0C0" Margin="8,0"/>
-                <TextBlock Grid.Column="2" Text="{Binding ProjectPathDisplay, StringFormat='工程：{0}'}" VerticalAlignment="Center" Margin="4,0"/>
-                <Rectangle Grid.Column="3" Width="1" Fill="#C0C0C0" Margin="8,0"/>
-                <TextBlock Grid.Column="4" Text="{Binding DirtyMarker, StringFormat='状态：{0}'}" VerticalAlignment="Center" Margin="4,0" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="{Binding StatusMessage}" VerticalAlignment="Center" Margin="4,0"
+                           Foreground="{DynamicResource C.Text}"/>
+                <Rectangle Grid.Column="1" Width="1" Fill="{DynamicResource C.Line}" Margin="8,0"/>
+                <TextBlock Grid.Column="2" Text="{Binding ProjectPathDisplay, StringFormat='工程：{0}'}" VerticalAlignment="Center" Margin="4,0"
+                           Foreground="{DynamicResource C.Muted}"/>
+                <Rectangle Grid.Column="3" Width="1" Fill="{DynamicResource C.Line}" Margin="8,0"/>
+                <TextBlock Grid.Column="4" Text="{Binding DirtyMarker, StringFormat='状态：{0}'}" VerticalAlignment="Center" Margin="4,0" HorizontalAlignment="Right"
+                           Foreground="{DynamicResource C.Muted}"/>
                 <ProgressBar Grid.Column="4" Width="100" Height="14" IsIndeterminate="{Binding IsBusy}"
                              IsVisible="{Binding IsBusy}" HorizontalAlignment="Right" Margin="4,0"/>
             </Grid>
         </Border>
 
-        <!-- 主体：左侧导航 + 页签区 -->
-        <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="100"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
+        <!-- 主体：通算宝侧边栏 + 页签工作区 -->
+        <Grid ColumnDefinitions="210,*">
+            <!-- 深青侧边栏 -->
+            <Border Grid.Column="0" Background="{DynamicResource C.Sidebar}">
+                <DockPanel>
+                    <!-- 侧边栏底部工具 -->
+                    <StackPanel DockPanel.Dock="Bottom" Margin="10,0,10,12">
+                        <Rectangle Height="1" Fill="#14FFFFFF" Margin="0,0,0,10"/>
+                        <Button Classes="nav-item" Command="{Binding ShowRatesCommand}">
+                            <TextBlock Text="▦ 费率编辑"/>
+                        </Button>
+                        <Button Classes="nav-item" Command="{Binding ShowDiscountCommand}">
+                            <TextBlock Text="▦ 打折规则"/>
+                        </Button>
+                        <Button Classes="nav-item" Command="{Binding ShowTable5ConfigCommand}">
+                            <TextBlock Text="▦ 表五配置"/>
+                        </Button>
+                    </StackPanel>
 
-            <!-- 左侧垂直导航按钮 -->
-            <Border Grid.Column="0" Background="#F0F0F0" BorderBrush="#C0C0C0" BorderThickness="0,0,1,0">
-                <StackPanel Orientation="Vertical" Spacing="2" Margin="4">
-                    <Button Command="{Binding ShowProjectInfoCommand}" HorizontalAlignment="Stretch" Padding="8,12">
-                        <TextBlock Text="工程信息" TextWrapping="Wrap" TextAlignment="Center"/>
-                    </Button>
-                    <Button Command="{Binding ShowTable3ACommand}" HorizontalAlignment="Stretch" Padding="8,12">
-                        <TextBlock Text="工程量" TextWrapping="Wrap" TextAlignment="Center"/>
-                    </Button>
-                    <Button Command="{Binding ShowTable2Command}" HorizontalAlignment="Stretch" Padding="8,12">
-                        <TextBlock Text="取费" TextWrapping="Wrap" TextAlignment="Center"/>
-                    </Button>
-                    <Button Command="{Binding ShowTable1Command}" HorizontalAlignment="Stretch" Padding="8,12">
-                        <TextBlock Text="表一" TextWrapping="Wrap" TextAlignment="Center"/>
-                    </Button>
-                    <Button Command="{Binding ShowTable5Command}" HorizontalAlignment="Stretch" Padding="8,12">
-                        <TextBlock Text="表五" TextWrapping="Wrap" TextAlignment="Center"/>
-                    </Button>
-                    <Button Command="{Binding ShowSummaryCommand}" HorizontalAlignment="Stretch" Padding="8,12">
-                        <TextBlock Text="报表" TextWrapping="Wrap" TextAlignment="Center"/>
-                    </Button>
-                </StackPanel>
+                    <DockPanel>
+                        <!-- Logo 区 -->
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="12" Margin="18,18,18,16">
+                            <Border Width="40" Height="40" CornerRadius="10" Background="{DynamicResource C.Accent}">
+                                <TextBlock Text="通" FontSize="22" FontWeight="Bold" Foreground="#10312F"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="通算宝" FontSize="17" FontWeight="Bold" Foreground="White"/>
+                                <TextBlock Text="通信工程概预算" FontSize="11" Foreground="#B3FFFFFF"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- 导航 -->
+                        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="10,4" Spacing="0">
+                                <Button Classes="nav-item" Command="{Binding ShowProjectInfoCommand}">
+                                    <TextBlock Text="◧  工程信息"/>
+                                </Button>
+                                <Button Classes="nav-item" Command="{Binding ShowTable3ACommand}">
+                                    <TextBlock Text="▤  定额输入"/>
+                                </Button>
+                                <Button Classes="nav-item" Command="{Binding ShowTable3BCommand}">
+                                    <TextBlock Text="▤  机械台班"/>
+                                </Button>
+                                <Button Classes="nav-item" Command="{Binding ShowTable3CCommand}">
+                                    <TextBlock Text="▤  仪器仪表"/>
+                                </Button>
+                                <Button Classes="nav-item" Command="{Binding ShowTable4ACommand}">
+                                    <TextBlock Text="▦  材料汇总"/>
+                                </Button>
+                                <Button Classes="nav-item" Command="{Binding ShowTable4BCommand}">
+                                    <TextBlock Text="▦  乙供材料"/>
+                                </Button>
+                                <Button Classes="nav-item" Command="{Binding ShowTable2Command}">
+                                    <TextBlock Text="▣  措施取费"/>
+                                </Button>
+                                <Button Classes="nav-item" Command="{Binding ShowTable1Command}">
+                                    <TextBlock Text="▣  预算汇总"/>
+                                </Button>
+                                <Button Classes="nav-item" Command="{Binding ShowTable5Command}">
+                                    <TextBlock Text="▣  其他费用"/>
+                                </Button>
+                                <Button Classes="nav-item" Command="{Binding ShowSummaryCommand}">
+                                    <TextBlock Text="⇶  汇总报表"/>
+                                </Button>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </DockPanel>
+                </DockPanel>
             </Border>
 
             <!-- 右侧工作区 -->
             <TabControl Grid.Column="1" Name="WorkbenchTabs"
+                        Background="{DynamicResource C.Bg}"
+                        Margin="12,8,12,4"
                         ItemsSource="{Binding OpenTabs}"
                         SelectedItem="{Binding SelectedTab}">
                 <TabControl.ItemTemplate>
                     <DataTemplate x:DataType="wvm:WorkbenchTabViewModel">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{Binding Title}" VerticalAlignment="Center"/>
-                            <Button Content="×" Margin="6,0,0,0" Padding="2,0"
+                            <Button Content="×" Margin="6,0,0,0" Padding="2,0" MinWidth="20"
                                     Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).CloseTabCommand}"
                                     CommandParameter="{Binding}"/>
                         </StackPanel>

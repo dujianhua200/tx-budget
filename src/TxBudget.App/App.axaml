@@ -2,6 +2,23 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:wvm="clr-namespace:TxBudget.App.Workbench.ViewModels;assembly=TxBudget.App.Workbench"
              x:Class="TxBudget.App.App">
+    <!-- 通算宝设计语言调色板（borrowed from comm-budget-desktop renderer/app.css） -->
+    <Application.Resources>
+        <SolidColorBrush x:Key="C.Primary">#0E7C7B</SolidColorBrush>
+        <SolidColorBrush x:Key="C.PrimaryDark">#0A5F5E</SolidColorBrush>
+        <SolidColorBrush x:Key="C.Accent">#F2A900</SolidColorBrush>
+        <SolidColorBrush x:Key="C.Danger">#C0392B</SolidColorBrush>
+        <SolidColorBrush x:Key="C.Success">#2E8B57</SolidColorBrush>
+        <SolidColorBrush x:Key="C.Bg">#F2F5F4</SolidColorBrush>
+        <SolidColorBrush x:Key="C.Card">#FFFFFF</SolidColorBrush>
+        <SolidColorBrush x:Key="C.Text">#1F2D2B</SolidColorBrush>
+        <SolidColorBrush x:Key="C.Muted">#6B7C79</SolidColorBrush>
+        <SolidColorBrush x:Key="C.Line">#E2E8E6</SolidColorBrush>
+        <SolidColorBrush x:Key="C.Sidebar">#10312F</SolidColorBrush>
+        <SolidColorBrush x:Key="C.SidebarText">#B8C8C5</SolidColorBrush>
+        <SolidColorBrush x:Key="C.HeaderBg">#F2F5F4</SolidColorBrush>
+        <SolidColorBrush x:Key="C.TotalBg">#FFF7E6</SolidColorBrush>
+    </Application.Resources>
     <Application.DataTemplates>
         <!-- 工程信息 -->
         <DataTemplate DataType="{x:Type wvm:ProjectInfoViewModel}">
