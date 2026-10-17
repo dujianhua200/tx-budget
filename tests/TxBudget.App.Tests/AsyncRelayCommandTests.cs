@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using TxBudget.App.Workbench.Infrastructure;
 using Xunit;
@@ -9,18 +10,26 @@ public class AsyncRelayCommandTests
     [Fact]
     public async Task AsyncRelayCommand_ExecutesAsync_WithoutBlocking()
     {
-        var executed = false;
+        var doneTcs = new TaskCompletionSource();
         var cmd = new AsyncRelayCommand(async _ =>
         {
-            await Task.Delay(10);
-            executed = true;
+            await Task.Yield();
         });
+
+        // finally 中 RaiseCanExecuteChanged 在 _isExecuting=false 之后触发：
+        // 仅当 CanExecute 恢复 true 时完成等待 → 确定性（首次触发处于执行中，被忽略）
+        cmd.CanExecuteChanged += (_, _) =>
+        {
+            if (cmd.CanExecute(null)) doneTcs.TrySetResult();
+        };
 
         cmd.Execute(null);
 
-        // 等待异步执行完成
-        await Task.Delay(50);
-        Assert.True(executed, "AsyncRelayCommand 必须真正执行异步逻辑");
+        // Execute 同步段内即置 _isExecuting：调用线程不被阻塞
+        Assert.False(cmd.CanExecute(null), "执行中 CanExecute 应为 false");
+
+        await doneTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(cmd.CanExecute(null), "异步执行完成后 CanExecute 应恢复 true");
     }
 
     [Fact]
