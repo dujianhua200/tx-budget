@@ -1,14 +1,24 @@
-# 通信概预算 v4.0（Avalonia UI + .NET 8）：跨平台构建与测试
-# 触发方式：push 到 v4-avalonia / main 分支、PR、手动触发
+# 通信概预算 v4.0（Avalonia UI + .NET 8）：跨平台构建、测试与 DMG 发布
+# 触发方式：
+#   - push 到开发分支 / tag（v*）：跑测试，tag 时发布 Release（含 DMG）
+#   - PR：跑测试
+#   - 手动触发：可选 create_release=true，发布预发布版 DMG
 
 name: Build v4 Avalonia
 
 on:
   push:
-    branches: [v4-avalonia, main, v4-build-test]
+    branches: [v4-avalonia, main, v4-build-test, v4-build-test-latest, "v4-build-test*"]
+    tags: ["v*"]
   pull_request:
     branches: [v4-avalonia, main]
   workflow_dispatch:
+    inputs:
+      create_release:
+        description: "创建 GitHub Release 并附 DMG"
+        type: boolean
+        default: false
+        required: false
 
 jobs:
   test-cross-platform:
@@ -133,6 +143,56 @@ jobs:
         with:
           name: TxBudget-macOS-arm64
           path: ./publish/TxBudget-macOS-arm64.dmg
+
+  release-macos:
+    name: GitHub Release (attach DMG)
+    # tag 推送（v*）或手动勾选 create_release 时发布
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && inputs.create_release == true)
+    runs-on: ubuntu-latest
+    needs: [test-cross-platform, build-macos-app]
+    permissions:
+      contents: write
+    steps:
+      - name: Download DMG artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: TxBudget-macOS-arm64
+          path: ./dist
+
+      - name: Create Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          VERSION="${GITHUB_REF_NAME}"
+          TITLE="通信概预算 ${VERSION}（macOS Apple Silicon）"
+          NOTES=$(cat <<'EOF'
+          ## 下载
+          - Apple Silicon（M1/M2/M3/M4）：`TxBudget-macOS-arm64.dmg`
+
+          ## 安装
+          1. 打开 DMG，把 **TxBudget** 拖入「应用程序」
+          2. 首次打开：在「系统设置 → 隐私与安全性」点击 **仍要打开**（未签名应用）
+          3. 如提示已损坏，在终端执行：
+             `xattr -cr /Applications/TxBudget.app`
+
+          ## 包含
+          - 451 号文概预算计算引擎（Oracle 对拍验证）
+          - 表一~表五 Excel 导出
+          - macOS arm64 自包含运行时（无需安装 .NET）
+          EOF
+          )
+          if gh release view "$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $VERSION 已存在，追加资产"
+            gh release upload "$VERSION" ./dist/TxBudget-macOS-arm64.dmg --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$VERSION" ./dist/TxBudget-macOS-arm64.dmg \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$TITLE" \
+              --notes "$NOTES"
+          fi
 
   build-windows:
     name: Windows Avalonia compile check
