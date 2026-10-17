@@ -6,8 +6,10 @@ public class SummaryViewModel : WorkbenchTabViewModel
 
     public decimal ConstructionExcl => _lastResult?.Summary.ConstructionExcl ?? 0m;
     public decimal ConstructionVat => _lastResult?.Summary.ConstructionVat ?? 0m;
+    public decimal ConstructionIncl => ConstructionExcl + ConstructionVat;
     public decimal Other => _lastResult?.Summary.Other ?? 0m;
     public decimal OtherVat => _lastResult?.Summary.OtherVat ?? 0m;
+    public decimal OtherIncl => Other + OtherVat;
     public decimal TotalExcl => _lastResult?.Summary.TotalExcl ?? 0m;
     public decimal TotalVat => _lastResult?.Summary.TotalVat ?? 0m;
     public decimal TotalIncl => _lastResult?.Summary.TotalIncl ?? 0m;
@@ -17,8 +19,10 @@ public class SummaryViewModel : WorkbenchTabViewModel
         base.Refresh();
         OnPropertyChanged(nameof(ConstructionExcl));
         OnPropertyChanged(nameof(ConstructionVat));
+        OnPropertyChanged(nameof(ConstructionIncl));
         OnPropertyChanged(nameof(Other));
         OnPropertyChanged(nameof(OtherVat));
+        OnPropertyChanged(nameof(OtherIncl));
         OnPropertyChanged(nameof(TotalExcl));
         OnPropertyChanged(nameof(TotalVat));
         OnPropertyChanged(nameof(TotalIncl));

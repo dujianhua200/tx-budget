@@ -218,7 +218,7 @@
 
         <!-- 汇总表 -->
         <DataTemplate DataType="{x:Type wvm:SummaryViewModel}">
-            <Grid Margin="10" ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+            <Grid Margin="10" ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
                 <TextBlock Grid.Row="0" Grid.Column="0" Text="建安工程费(不含税)" Margin="4"/>
                 <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding ConstructionExcl}" Margin="4"/>
                 <TextBlock Grid.Row="1" Grid.Column="0" Text="建安工程费(增值税)" Margin="4"/>
